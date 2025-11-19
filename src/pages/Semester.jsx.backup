@@ -1,0 +1,960 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+    Plus,
+    Calendar as CalendarIcon,
+    Clock,
+    BookOpen,
+    Settings,
+    X,
+    Flag,
+    CheckCircle2,
+    Edit2,
+    Trash2,
+    MapPin,
+    User,
+    GraduationCap,
+} from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { addDays, format, startOfWeek, differenceInDays, isSameDay, parseISO } from 'date-fns';
+
+const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const colorPalette = [
+    'from-blue-500 to-indigo-600',
+    'from-emerald-500 to-lime-600',
+    'from-fuchsia-500 to-pink-600',
+    'from-orange-500 to-amber-600',
+];
+
+const bangladeshHolidays = [
+    { date: '2025-02-21', name: 'International Mother Language Day' },
+    { date: '2025-03-17', name: "Sheikh Mujibur Rahman's Birthday" },
+    { date: '2025-03-26', name: 'Independence Day' },
+    { date: '2025-03-31', name: 'Eid-ul-Fitr (approx)' },
+    { date: '2025-04-01', name: 'Eid-ul-Fitr Holiday' },
+    { date: '2025-04-14', name: 'Bengali New Year (Pohela Boishakh)' },
+    { date: '2025-05-01', name: 'May Day' },
+    { date: '2025-05-23', name: 'Buddha Purnima' },
+    { date: '2025-06-07', name: 'Eid-ul-Adha (approx)' },
+    { date: '2025-06-08', name: 'Eid-ul-Adha Holiday' },
+    { date: '2025-08-15', name: 'National Mourning Day' },
+    { date: '2025-09-05', name: 'Ashura (approx)' },
+    { date: '2025-10-04', name: 'Durga Puja' },
+    { date: '2025-12-16', name: 'Victory Day' },
+    { date: '2025-12-25', name: 'Christmas Day' },
+];
+
+const Semester = () => {
+    const {
+        semester,
+        addSemesterEvent,
+        deleteSemesterEvent,
+        timetable,
+        addTimetableClass,
+        deleteTimetableClass,
+        semesterConfig,
+        updateSemesterConfig,
+        assignments,
+        addAssignment,
+        deleteAssignment,
+        toggleAssignmentComplete,
+        exams,
+        addExam,
+        deleteExam,
+    } = useApp();
+
+    const [activeTab, setActiveTab] = useState('classes');
+    const [showSetupOverlay, setShowSetupOverlay] = useState(false);
+    const [classForm, setClassForm] = useState({
+        subject: '',
+        type: 'lecture',
+        day: 'Monday',
+        startTime: '',
+        endTime: '',
+        location: '',
+        instructor: '',
+    });
+    const [assignmentForm, setAssignmentForm] = useState({
+        title: '',
+        course: '',
+        dueDate: '',
+        description: '',
+    });
+    const [examForm, setExamForm] = useState({
+        title: '',
+        subject: '',
+        date: '',
+        time: '',
+        description: '',
+    });
+    const [deadlineForm, setDeadlineForm] = useState({
+        title: '',
+        date: '',
+        time: '',
+        description: '',
+        type: 'deadline',
+    });
+    const [setupForm, setSetupForm] = useState({
+        name: '',
+        startDate: '',
+        endDate: '',
+        holidays: [],
+    });
+
+    useEffect(() => {
+        if (semesterConfig) {
+            setSetupForm(semesterConfig);
+        }
+    }, [semesterConfig]);
+
+    const today = new Date();
+    const weekStart = useMemo(() => startOfWeek(today, { weekStartsOn: 0 }), []);
+    const weekDays = useMemo(
+        () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
+        [weekStart]
+    );
+
+    const weekEvents = useMemo(() => {
+        return weekDays.map((date) => {
+            const iso = format(date, 'yyyy-MM-dd');
+            const dayName = format(date, 'EEEE');
+            const classesForDay = timetable.filter((cls) => cls.day === dayName);
+            const assignmentsForDay = assignments.filter((assignment) => assignment.dueDate === iso);
+            const examsForDay = exams.filter((exam) => exam.date === iso);
+            const deadlinesForDay = semester.filter((evt) => evt.date === iso);
+            return {
+                date,
+                iso,
+                dayName,
+                classes: classesForDay,
+                assignments: assignmentsForDay,
+                exams: examsForDay,
+                deadlines: deadlinesForDay,
+            };
+        });
+    }, [weekDays, timetable, assignments, exams, semester]);
+
+    const upcomingAssignments = useMemo(() => {
+        return [...assignments]
+            .filter(a => !a.completed)
+            .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+            .slice(0, 10);
+    }, [assignments]);
+
+    const upcomingDeadlines = useMemo(() => {
+        return semester
+            .filter((evt) => evt.type !== 'exam')
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .slice(0, 10);
+    }, [semester]);
+
+    const upcomingExams = useMemo(() => {
+        return exams
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .slice(0, 10);
+    }, [exams]);
+
+    const handleClassSubmit = (e) => {
+        e.preventDefault();
+        if (!classForm.subject || !classForm.startTime || !classForm.endTime) return;
+        const newClass = {
+            ...classForm,
+            color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
+        };
+        addTimetableClass(newClass);
+        setClassForm({
+            subject: '',
+            type: 'lecture',
+            day: 'Monday',
+            startTime: '',
+            endTime: '',
+            location: '',
+            instructor: '',
+        });
+    };
+
+    const handleAssignmentSubmit = (e) => {
+        e.preventDefault();
+        if (!assignmentForm.title || !assignmentForm.dueDate) return;
+        addAssignment(assignmentForm);
+        setAssignmentForm({ title: '', course: '', dueDate: '', description: '' });
+    };
+
+    const handleExamSubmit = (e) => {
+        e.preventDefault();
+        if (!examForm.title || !examForm.date) return;
+        addExam(examForm);
+        setExamForm({ title: '', subject: '', date: '', time: '', description: '' });
+    };
+
+    const handleDeadlineSubmit = (e) => {
+        e.preventDefault();
+        if (!deadlineForm.title || !deadlineForm.date) return;
+        addSemesterEvent(deadlineForm);
+        setDeadlineForm({ title: '', date: '', time: '', description: '', type: 'deadline' });
+    };
+
+    const handleSemesterSetup = (e) => {
+        e.preventDefault();
+        if (!setupForm.name || !setupForm.startDate || !setupForm.endDate) return;
+        updateSemesterConfig(setupForm);
+        setShowSetupOverlay(false);
+    };
+
+    const toggleHoliday = (date) => {
+        setSetupForm((prev) => {
+            const hasHoliday = prev.holidays.includes(date);
+            const holidays = hasHoliday
+                ? prev.holidays.filter((d) => d !== date)
+                : [...prev.holidays, date];
+            return { ...prev, holidays };
+        });
+    };
+
+    const stats = [
+        { label: 'Classes', value: timetable.length, icon: Clock, color: 'from-blue-500 to-indigo-600' },
+        { label: 'Assignments', value: assignments.filter(a => !a.completed).length, icon: CheckCircle2, color: 'from-amber-500 to-orange-600' },
+        { label: 'Deadlines', value: upcomingDeadlines.length, icon: Flag, color: 'from-rose-500 to-pink-600' },
+        { label: 'Exams', value: exams.length, icon: BookOpen, color: 'from-cyan-500 to-teal-600' },
+    ];
+
+    const tabs = [
+        { id: 'classes', label: 'Class Times', icon: Clock },
+        { id: 'assignments', label: 'Class Work', icon: CheckCircle2 },
+        { id: 'deadlines', label: 'Deadlines', icon: Flag },
+        { id: 'exams', label: 'Exams', icon: BookOpen },
+    ];
+
+    return (
+        <div className="space-y-6 pb-20">
+            {/* Header */}
+            <div className="flex flex-wrap gap-3 items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                        <GraduationCap className="w-7 h-7 text-indigo-600" />
+                        {semesterConfig?.name || 'Academic Planner'}
+                    </h1>
+                    <p className="text-sm text-slate-600 mt-1">
+                        {semesterConfig?.startDate && semesterConfig?.endDate
+                            ? `${format(new Date(semesterConfig.startDate), 'MMM d, yyyy')} - ${format(
+                                  new Date(semesterConfig.endDate),
+                                  'MMM d, yyyy'
+                              )}`
+                            : 'Manage your classes, assignments, and exams'}
+                    </p>
+                </div>
+                <button
+                    onClick={() => setShowSetupOverlay(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold shadow-md hover:shadow-lg transition-all"
+                >
+                    <Settings className="w-4 h-4" />
+                    {semesterConfig ? 'Edit Semester' : 'Setup Semester'}
+                </button>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {stats.map((stat) => (
+                    <motion.div
+                        key={stat.label}
+                        whileHover={{ scale: 1.02 }}
+                        className="bg-white rounded-xl p-4 shadow-sm border border-slate-200"
+                    >
+                        <div className="flex items-center justify-between mb-2">
+                            <stat.icon className="w-5 h-5 text-slate-400" />
+                            <div className={`w-10 h-10 rounded-lg bg-linear-to-r ${stat.color} opacity-10`} />
+                        </div>
+                        <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
+                        <p className="text-xs text-slate-600">{stat.label}</p>
+                    </motion.div>
+                ))}
+            </div>
+
+            {/* Main Layout */}
+            <div className="grid gap-5 lg:grid-cols-[320px,1fr]">
+                {/* Left Sidebar - Calendar */}
+                <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                            <CalendarIcon className="w-5 h-5 text-indigo-600" />
+                            Week Overview
+                        </h3>
+                        <p className="text-xs text-slate-500">{format(today, 'MMM yyyy')}</p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                        {weekEvents.map((day) => {
+                            const isToday = isSameDay(day.date, today);
+                            const hasEvents = day.classes.length > 0 || day.assignments.length > 0 || 
+                                            day.exams.length > 0 || day.deadlines.length > 0;
+                            
+                            return (
+                                <div
+                                    key={day.iso}
+                                    className={`p-3 rounded-lg border ${
+                                        isToday
+                                            ? 'border-indigo-300 bg-indigo-50'
+                                            : hasEvents
+                                            ? 'border-slate-200 bg-slate-50'
+                                            : 'border-slate-100'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div>
+                                            <p className={`text-sm font-semibold ${isToday ? 'text-indigo-700' : 'text-slate-900'}`}>
+                                                {format(day.date, 'EEE')}
+                                            </p>
+                                            <p className="text-xs text-slate-500">{format(day.date, 'MMM d')}</p>
+                                        </div>
+                                        {hasEvents && (
+                                            <div className="flex gap-1">
+                                                {day.classes.length > 0 && (
+                                                    <div className="w-2 h-2 rounded-full bg-blue-500" title={`${day.classes.length} classes`} />
+                                                )}
+                                                {day.assignments.length > 0 && (
+                                                    <div className="w-2 h-2 rounded-full bg-amber-500" title={`${day.assignments.length} assignments`} />
+                                                )}
+                                                {day.exams.length > 0 && (
+                                                    <div className="w-2 h-2 rounded-full bg-cyan-500" title={`${day.exams.length} exams`} />
+                                                )}
+                                                {day.deadlines.length > 0 && (
+                                                    <div className="w-2 h-2 rounded-full bg-rose-500" title={`${day.deadlines.length} deadlines`} />
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {hasEvents && (
+                                        <div className="space-y-1">
+                                            {day.classes.slice(0, 2).map((cls) => (
+                                                <p key={cls.id} className="text-xs text-slate-600 truncate">
+                                                    🎓 {cls.subject}
+                                                </p>
+                                            ))}
+                                            {day.assignments.slice(0, 1).map((a) => (
+                                                <p key={a.id} className="text-xs text-amber-600 truncate">
+                                                    📝 {a.title}
+                                                </p>
+                                            ))}
+                                            {day.exams.slice(0, 1).map((e) => (
+                                                <p key={e.id} className="text-xs text-cyan-600 truncate">
+                                                    📖 {e.title}
+                                                </p>
+                                            ))}
+                                            {day.deadlines.slice(0, 1).map((d) => (
+                                                <p key={d.id} className="text-xs text-rose-600 truncate">
+                                                    🚩 {d.title}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Right Content - Tabs */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+                    {/* Tab Headers */}
+                    <div className="border-b border-slate-200 px-6 pt-5">
+                        <div className="flex gap-1 overflow-x-auto">
+                            {tabs.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex items-center gap-2 px-4 py-3 font-medium rounded-t-lg transition-colors ${
+                                        activeTab === tab.id
+                                            ? 'bg-slate-50 text-indigo-600 border-b-2 border-indigo-600'
+                                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <tab.icon className="w-4 h-4" />
+                                    <span className="text-sm">{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Tab Content */}
+                    <div className="p-6">
+                        <AnimatePresence mode="wait">
+                            {activeTab === 'classes' && (
+                                <motion.div
+                                    key="classes"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="space-y-4"
+                                >
+                                    <form onSubmit={handleClassSubmit} className="bg-slate-50 rounded-xl p-4 space-y-3">
+                                        <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                            <Plus className="w-5 h-5 text-indigo-600" />
+                                            Add New Class
+                                        </h3>
+                                        <input
+                                            type="text"
+                                            placeholder="Course name (e.g., CSE 101)"
+                                            value={classForm.subject}
+                                            onChange={(e) => setClassForm({ ...classForm, subject: e.target.value })}
+                                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                                            required
+                                        />
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <select
+                                                value={classForm.day}
+                                                onChange={(e) => setClassForm({ ...classForm, day: e.target.value })}
+                                                className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                                            >
+                                                {dayNames.map((day) => (
+                                                    <option key={day} value={day}>{day}</option>
+                                                ))}
+                                            </select>
+                                            <input
+                                                type="time"
+                                                value={classForm.startTime}
+                                                onChange={(e) => setClassForm({ ...classForm, startTime: e.target.value })}
+                                                className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                                                required
+                                            />
+                                            <input
+                                                type="time"
+                                                value={classForm.endTime}
+                                                onChange={(e) => setClassForm({ ...classForm, endTime: e.target.value })}
+                                                className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <input
+                                                type="text"
+                                                placeholder="Location (optional)"
+                                                value={classForm.location}
+                                                onChange={(e) => setClassForm({ ...classForm, location: e.target.value })}
+                                                className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                                            />
+                                            <select
+                                                value={classForm.type}
+                                                onChange={(e) => setClassForm({ ...classForm, type: e.target.value })}
+                                                className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                                            >
+                                                <option value="lecture">Lecture</option>
+                                                <option value="lab">Lab</option>
+                                                <option value="tutorial">Tutorial</option>
+                                            </select>
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+                                        >
+                                            Add Class
+                                        </button>
+                                    </form>
+
+                                    <div className="space-y-3">
+                                        <h3 className="font-semibold text-slate-900">Your Classes ({timetable.length})</h3>
+                                        {timetable.length === 0 ? (
+                                            <p className="text-sm text-slate-500">No classes added yet. Start by adding your first class above.</p>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {timetable.map((cls) => (
+                                                    <div key={cls.id} className="flex items-start justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                                        <div className="flex-1">
+                                                            <h4 className="font-semibold text-slate-900">{cls.subject}</h4>
+                                                            <div className="mt-1 flex flex-wrap gap-2 text-sm text-slate-600">
+                                                                <span className="flex items-center gap-1">
+                                                                    <CalendarIcon className="w-3 h-3" />
+                                                                    {cls.day}
+                                                                </span>
+                                                                <span className="flex items-center gap-1">
+                                                                    <Clock className="w-3 h-3" />
+                                                                    {cls.startTime} - {cls.endTime}
+                                                                </span>
+                                                                {cls.location && (
+                                                                    <span className="flex items-center gap-1">
+                                                                        <MapPin className="w-3 h-3" />
+                                                                        {cls.location}
+                                                                    </span>
+                                                                )}
+                                                                <span className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-xs capitalize">
+                                                                    {cls.type}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => deleteTimetableClass(cls.id)}
+                                                            className="text-rose-600 hover:text-rose-700 p-2"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            {activeTab === 'assignments' && (
+                                <motion.div
+                                    key="assignments"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="space-y-4"
+                                >
+                                    <form onSubmit={handleAssignmentSubmit} className="bg-amber-50 rounded-xl p-4 space-y-3 border border-amber-200">
+                                        <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                            <Plus className="w-5 h-5 text-amber-600" />
+                                            Add New Assignment
+                                        </h3>
+                                        <input
+                                            type="text"
+                                            placeholder="Assignment title"
+                                            value={assignmentForm.title}
+                                            onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })}
+                                            className="w-full rounded-lg border border-amber-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                                            required
+                                        />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <input
+                                                type="text"
+                                                placeholder="Course"
+                                                value={assignmentForm.course}
+                                                onChange={(e) => setAssignmentForm({ ...assignmentForm, course: e.target.value })}
+                                                className="rounded-lg border border-amber-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                                            />
+                                            <input
+                                                type="date"
+                                                value={assignmentForm.dueDate}
+                                                onChange={(e) => setAssignmentForm({ ...assignmentForm, dueDate: e.target.value })}
+                                                className="rounded-lg border border-amber-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                                                required
+                                            />
+                                        </div>
+                                        <textarea
+                                            rows={2}
+                                            placeholder="Description (optional)"
+                                            value={assignmentForm.description}
+                                            onChange={(e) => setAssignmentForm({ ...assignmentForm, description: e.target.value })}
+                                            className="w-full rounded-lg border border-amber-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                                        />
+                                        <button
+                                            type="submit"
+                                            className="w-full bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-amber-600 transition-colors"
+                                        >
+                                            Add Assignment
+                                        </button>
+                                    </form>
+
+                                    <div className="space-y-3">
+                                        <h3 className="font-semibold text-slate-900">
+                                            Assignments ({assignments.filter(a => !a.completed).length} pending)
+                                        </h3>
+                                        {upcomingAssignments.length === 0 ? (
+                                            <p className="text-sm text-slate-500">No assignments yet. Add your first assignment above.</p>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {upcomingAssignments.map((assignment) => {
+                                                    const daysUntil = differenceInDays(parseISO(assignment.dueDate), today);
+                                                    const isOverdue = daysUntil < 0;
+                                                    const isDueSoon = daysUntil >= 0 && daysUntil <= 3;
+                                                    
+                                                    return (
+                                                        <div
+                                                            key={assignment.id}
+                                                            className={`flex items-start justify-between p-4 rounded-lg border ${
+                                                                assignment.completed
+                                                                    ? 'bg-slate-100 border-slate-200 opacity-60'
+                                                                    : isOverdue
+                                                                    ? 'bg-rose-50 border-rose-200'
+                                                                    : isDueSoon
+                                                                    ? 'bg-amber-50 border-amber-200'
+                                                                    : 'bg-white border-slate-200'
+                                                            }`}
+                                                        >
+                                                            <div className="flex-1">
+                                                                <h4 className={`font-semibold ${assignment.completed ? 'line-through text-slate-500' : 'text-slate-900'}`}>
+                                                                    {assignment.title}
+                                                                </h4>
+                                                                <div className="mt-1 flex flex-wrap gap-2 text-sm text-slate-600">
+                                                                    {assignment.course && (
+                                                                        <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded text-xs">
+                                                                            {assignment.course}
+                                                                        </span>
+                                                                    )}
+                                                                    <span className={isOverdue ? 'text-rose-600 font-semibold' : ''}>
+                                                                        Due: {format(parseISO(assignment.dueDate), 'MMM d, yyyy')}
+                                                                        {isOverdue && ' (Overdue)'}
+                                                                        {isDueSoon && !isOverdue && ` (in ${daysUntil} days)`}
+                                                                    </span>
+                                                                </div>
+                                                                {assignment.description && (
+                                                                    <p className="mt-2 text-sm text-slate-600">{assignment.description}</p>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => toggleAssignmentComplete(assignment.id)}
+                                                                    className={`px-3 py-1 rounded text-xs font-semibold ${
+                                                                        assignment.completed
+                                                                            ? 'bg-slate-200 text-slate-700'
+                                                                            : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                                                    }`}
+                                                                >
+                                                                    {assignment.completed ? 'Completed' : 'Mark Done'}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => deleteAssignment(assignment.id)}
+                                                                    className="text-rose-600 hover:text-rose-700 p-2"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            {activeTab === 'deadlines' && (
+                                <motion.div
+                                    key="deadlines"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="space-y-4"
+                                >
+                                    <form onSubmit={handleDeadlineSubmit} className="bg-rose-50 rounded-xl p-4 space-y-3 border border-rose-200">
+                                        <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                            <Plus className="w-5 h-5 text-rose-600" />
+                                            Add New Deadline
+                                        </h3>
+                                        <input
+                                            type="text"
+                                            placeholder="Deadline title"
+                                            value={deadlineForm.title}
+                                            onChange={(e) => setDeadlineForm({ ...deadlineForm, title: e.target.value })}
+                                            className="w-full rounded-lg border border-rose-200 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none"
+                                            required
+                                        />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <input
+                                                type="date"
+                                                value={deadlineForm.date}
+                                                onChange={(e) => setDeadlineForm({ ...deadlineForm, date: e.target.value })}
+                                                className="rounded-lg border border-rose-200 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none"
+                                                required
+                                            />
+                                            <input
+                                                type="time"
+                                                value={deadlineForm.time}
+                                                onChange={(e) => setDeadlineForm({ ...deadlineForm, time: e.target.value })}
+                                                className="rounded-lg border border-rose-200 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none"
+                                            />
+                                        </div>
+                                        <textarea
+                                            rows={2}
+                                            placeholder="Description (optional)"
+                                            value={deadlineForm.description}
+                                            onChange={(e) => setDeadlineForm({ ...deadlineForm, description: e.target.value })}
+                                            className="w-full rounded-lg border border-rose-200 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none"
+                                        />
+                                        <button
+                                            type="submit"
+                                            className="w-full bg-rose-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-rose-600 transition-colors"
+                                        >
+                                            Add Deadline
+                                        </button>
+                                    </form>
+
+                                    <div className="space-y-3">
+                                        <h3 className="font-semibold text-slate-900">Upcoming Deadlines ({upcomingDeadlines.length})</h3>
+                                        {upcomingDeadlines.length === 0 ? (
+                                            <p className="text-sm text-slate-500">No deadlines yet. Add your first deadline above.</p>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {upcomingDeadlines.map((deadline) => {
+                                                    const daysUntil = differenceInDays(parseISO(deadline.date), today);
+                                                    const isOverdue = daysUntil < 0;
+                                                    const isDueSoon = daysUntil >= 0 && daysUntil <= 3;
+                                                    
+                                                    return (
+                                                        <div
+                                                            key={deadline.id}
+                                                            className={`flex items-start justify-between p-4 rounded-lg border ${
+                                                                isOverdue
+                                                                    ? 'bg-rose-100 border-rose-300'
+                                                                    : isDueSoon
+                                                                    ? 'bg-rose-50 border-rose-200'
+                                                                    : 'bg-white border-slate-200'
+                                                            }`}
+                                                        >
+                                                            <div className="flex-1">
+                                                                <h4 className="font-semibold text-slate-900">{deadline.title}</h4>
+                                                                <div className="mt-1 flex flex-wrap gap-2 text-sm">
+                                                                    <span className={isOverdue ? 'text-rose-600 font-semibold' : 'text-slate-600'}>
+                                                                        {format(parseISO(deadline.date), 'MMM d, yyyy')}
+                                                                        {deadline.time && ` at ${deadline.time}`}
+                                                                        {isOverdue && ' (Overdue)'}
+                                                                        {isDueSoon && !isOverdue && ` (in ${daysUntil} days)`}
+                                                                    </span>
+                                                                </div>
+                                                                {deadline.description && (
+                                                                    <p className="mt-2 text-sm text-slate-600">{deadline.description}</p>
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                onClick={() => deleteSemesterEvent(deadline.id)}
+                                                                className="text-rose-600 hover:text-rose-700 p-2"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            {activeTab === 'exams' && (
+                                <motion.div
+                                    key="exams"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="space-y-4"
+                                >
+                                    <form onSubmit={handleExamSubmit} className="bg-cyan-50 rounded-xl p-4 space-y-3 border border-cyan-200">
+                                        <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                            <Plus className="w-5 h-5 text-cyan-600" />
+                                            Add New Exam
+                                        </h3>
+                                        <input
+                                            type="text"
+                                            placeholder="Exam title"
+                                            value={examForm.title}
+                                            onChange={(e) => setExamForm({ ...examForm, title: e.target.value })}
+                                            className="w-full rounded-lg border border-cyan-200 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
+                                            required
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Subject"
+                                            value={examForm.subject}
+                                            onChange={(e) => setExamForm({ ...examForm, subject: e.target.value })}
+                                            className="w-full rounded-lg border border-cyan-200 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
+                                        />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <input
+                                                type="date"
+                                                value={examForm.date}
+                                                onChange={(e) => setExamForm({ ...examForm, date: e.target.value })}
+                                                className="rounded-lg border border-cyan-200 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
+                                                required
+                                            />
+                                            <input
+                                                type="time"
+                                                value={examForm.time}
+                                                onChange={(e) => setExamForm({ ...examForm, time: e.target.value })}
+                                                className="rounded-lg border border-cyan-200 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
+                                            />
+                                        </div>
+                                        <textarea
+                                            rows={2}
+                                            placeholder="Exam details (optional)"
+                                            value={examForm.description}
+                                            onChange={(e) => setExamForm({ ...examForm, description: e.target.value })}
+                                            className="w-full rounded-lg border border-cyan-200 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
+                                        />
+                                        <button
+                                            type="submit"
+                                            className="w-full bg-cyan-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-cyan-700 transition-colors"
+                                        >
+                                            Add Exam
+                                        </button>
+                                    </form>
+
+                                    <div className="space-y-3">
+                                        <h3 className="font-semibold text-slate-900">Upcoming Exams ({upcomingExams.length})</h3>
+                                        {upcomingExams.length === 0 ? (
+                                            <p className="text-sm text-slate-500">No exams scheduled yet. Add your first exam above.</p>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {upcomingExams.map((exam) => {
+                                                    const daysUntil = differenceInDays(parseISO(exam.date), today);
+                                                    const isToday = daysUntil === 0;
+                                                    const isUpcoming = daysUntil > 0 && daysUntil <= 7;
+                                                    
+                                                    return (
+                                                        <div
+                                                            key={exam.id}
+                                                            className={`flex items-start justify-between p-4 rounded-lg border ${
+                                                                isToday
+                                                                    ? 'bg-cyan-100 border-cyan-300'
+                                                                    : isUpcoming
+                                                                    ? 'bg-cyan-50 border-cyan-200'
+                                                                    : 'bg-white border-slate-200'
+                                                            }`}
+                                                        >
+                                                            <div className="flex-1">
+                                                                <h4 className="font-semibold text-slate-900">{exam.title}</h4>
+                                                                {exam.subject && (
+                                                                    <p className="text-xs text-slate-600 mt-0.5">{exam.subject}</p>
+                                                                )}
+                                                                <div className="mt-1 flex flex-wrap gap-2 text-sm">
+                                                                    <span className={isToday ? 'text-cyan-600 font-semibold' : 'text-slate-600'}>
+                                                                        {format(parseISO(exam.date), 'MMM d, yyyy')}
+                                                                        {exam.time && ` at ${exam.time}`}
+                                                                        {isToday && ' (Today!)'}
+                                                                        {isUpcoming && ` (in ${daysUntil} days)`}
+                                                                    </span>
+                                                                </div>
+                                                                {exam.description && (
+                                                                    <p className="mt-2 text-sm text-slate-600">{exam.description}</p>
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                onClick={() => deleteExam(exam.id)}
+                                                                className="text-rose-600 hover:text-rose-700 p-2"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                </div>
+            </div>
+
+            {/* Semester Setup Overlay */}
+            <AnimatePresence>
+                {showSetupOverlay && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+                        onClick={() => setShowSetupOverlay(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 className="text-xl font-bold text-slate-900">Semester Configuration</h3>
+                                    <p className="text-sm text-slate-600">Set up your academic semester</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowSetupOverlay(false)}
+                                    className="rounded-full border border-slate-200 p-2 text-slate-500 hover:text-slate-700"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+                            <form onSubmit={handleSemesterSetup} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1">
+                                        Semester Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g., Fall 2025"
+                                        value={setupForm.name}
+                                        onChange={(e) => setSetupForm({ ...setupForm, name: e.target.value })}
+                                        className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:border-indigo-500 focus:outline-none"
+                                        required
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                                            Start Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={setupForm.startDate}
+                                            onChange={(e) => setSetupForm({ ...setupForm, startDate: e.target.value })}
+                                            className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:border-indigo-500 focus:outline-none"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                                            End Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={setupForm.endDate}
+                                            onChange={(e) => setSetupForm({ ...setupForm, endDate: e.target.value })}
+                                            className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:border-indigo-500 focus:outline-none"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                        Holidays (Optional)
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto p-2 bg-slate-50 rounded-lg border border-slate-200">
+                                        {bangladeshHolidays.map((holiday) => {
+                                            const selected = setupForm.holidays.includes(holiday.date);
+                                            return (
+                                                <button
+                                                    key={holiday.date}
+                                                    type="button"
+                                                    onClick={() => toggleHoliday(holiday.date)}
+                                                    className={`text-left px-3 py-2 rounded-lg border transition-colors ${
+                                                        selected
+                                                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                                            : 'border-transparent hover:border-slate-300 hover:bg-white'
+                                                    }`}
+                                                >
+                                                    <p className="font-semibold text-xs">{holiday.name}</p>
+                                                    <p className="text-xs text-slate-500">
+                                                        {format(new Date(holiday.date), 'MMM d, yyyy')}
+                                                    </p>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-end gap-3 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSetupOverlay(false)}
+                                        className="px-4 py-2 text-slate-600 hover:text-slate-900"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="px-6 py-2 bg-linear-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
+                                    >
+                                        Save Semester
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+export default Semester;
