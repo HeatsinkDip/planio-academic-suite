@@ -222,4 +222,124 @@ export const examsAPI = {
     },
 };
 
+// Debts API
+export const debtsAPI = {
+    getAll: async () => {
+        const response = await api.get('/debts');
+        return response.data;
+    },
+    
+    create: async (debtData) => {
+        const response = await api.post('/debts', debtData);
+        return response.data;
+    },
+    
+    update: async (id, debtData) => {
+        const response = await api.put(`/debts/${id}`, debtData);
+        return response.data;
+    },
+    
+    delete: async (id) => {
+        const response = await api.delete(`/debts/${id}`);
+        return response.data;
+    },
+};
+
+// Notes API
+export const notesAPI = {
+    getAll: async () => {
+        const response = await api.get('/notes');
+        return response.data;
+    },
+    
+    create: async (noteData) => {
+        const response = await api.post('/notes', noteData);
+        return response.data;
+    },
+    
+    update: async (id, noteData) => {
+        const response = await api.put(`/notes/${id}`, noteData);
+        return response.data;
+    },
+    
+    delete: async (id) => {
+        const response = await api.delete(`/notes/${id}`);
+        return response.data;
+    },
+};
+
+// Shared Expenses API
+export const sharedExpensesAPI = {
+    getAll: async () => {
+        const response = await api.get('/shared-expenses');
+        return response.data;
+    },
+    
+    create: async (expenseData) => {
+        const response = await api.post('/shared-expenses', expenseData);
+        return response.data;
+    },
+    
+    update: async (id, expenseData) => {
+        const response = await api.put(`/shared-expenses/${id}`, expenseData);
+        return response.data;
+    },
+    
+    delete: async (id) => {
+        const response = await api.delete(`/shared-expenses/${id}`);
+        return response.data;
+    },
+};
+
+// Events API
+export const eventsAPI = {
+    getAll: async () => {
+        const response = await api.get('/events');
+        return response.data;
+    },
+    
+    create: async (eventData) => {
+        const response = await api.post('/events', eventData);
+        return response.data;
+    },
+    
+    update: async (id, eventData) => {
+        const response = await api.put(`/events/${id}`, eventData);
+        return response.data;
+    },
+    
+    delete: async (id) => {
+        const response = await api.delete(`/events/${id}`);
+        return response.data;
+    },
+};
+
+// Habits API
+export const habitsAPI = {
+    getAll: async () => {
+        const response = await api.get('/habits');
+        return response.data;
+    },
+    
+    create: async (habitData) => {
+        const response = await api.post('/habits', habitData);
+        return response.data;
+    },
+    
+    update: async (id, habitData) => {
+        const response = await api.put(`/habits/${id}`, habitData);
+        return response.data;
+    },
+    
+    toggleToday: async (id) => {
+        const response = await api.post(`/habits/${id}/toggle`);
+        return response.data;
+    },
+    
+    delete: async (id) => {
+        const response = await api.delete(`/habits/${id}`);
+        return response.data;
+    },
+};
+
 export default api;

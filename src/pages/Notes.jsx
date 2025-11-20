@@ -364,7 +364,7 @@ function NoteCard({ note, togglePin, deleteNote, getSubjectColor }) {
               )}
             </button>
             <button
-              onClick={() => deleteNote(note.id)}
+                onClick={() => deleteNote(note._id || note.id)}
               className="text-white hover:scale-110 transition-transform"
             >
               <Trash2 className="w-5 h-5" />

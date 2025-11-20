@@ -1,0 +1,1492 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useApp } from '../context/AppContext';
+import { BookOpen, Calendar, AlertCircle, Clock, Plus, X, Settings, ChevronDown, ChevronUp, MapPin, Edit2, Trash2, Award, CheckCircle, XCircle, History } from 'lucide-react';
+import { format, addDays, startOfWeek, isSameDay, differenceInDays, parseISO, isToday } from 'date-fns';
+
+const Semester = () => {
+    const {
+        timetable, assignments, exams, semester,
+        addTimetable, addAssignment, addExam,
+        updateAssignment, deleteTimetable, deleteAssignment, deleteExam,
+        semesterConfig, setSemesterConfig, addTimetableClass, updateTimetableClass, deleteTimetableClass
+    } = useApp();
+
+    const [mainTab, setMainTab] = useState('overview'); // overview, timetable, history
+    const [activeTab, setActiveTab] = useState('classes');
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [showCalendar, setShowCalendar] = useState(false);
+    const [showSemesterSetup, setShowSemesterSetup] = useState(false);
+
+    // Form states
+    const [formData, setFormData] = useState({});
+    const [localSemesterConfig, setLocalSemesterConfig] = useState(null);
+    
+    // Timetable states
+    const [isAddingClass, setIsAddingClass] = useState(false);
+    const [editingClassId, setEditingClassId] = useState(null);
+    const [viewMode, setViewMode] = useState('today'); // today, week
+    const [classFormData, setClassFormData] = useState({
+        subject: '',
+        type: 'lecture',
+        day: 'Monday',
+        startTime: '',
+        endTime: '',
+        location: '',
+        instructor: '',
+        color: '#6366f1',
+    });
+    
+    // Academic History states
+    const [expandedHistoryItem, setExpandedHistoryItem] = useState(null);
+    const [activeHistoryView, setActiveHistoryView] = useState('summary');
+
+    // Initialize local config when modal opens
+    useEffect(() => {
+        if (showSemesterSetup) {
+            setLocalSemesterConfig(semesterConfig || { name: '', startDate: '', endDate: '', courses: [] });
+        }
+    }, [showSemesterSetup, semesterConfig]);
+
+    // Get week dates
+    const today = new Date();
+    const weekStart = startOfWeek(today);
+    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+
+    // Get events for calendar dots
+    const getEventsForDay = (day) => {
+        const dayStr = format(day, 'EEEE');
+        const dateStr = format(day, 'yyyy-MM-dd');
+        
+        const classes = timetable.filter(c => c.day === dayStr);
+        const dayAssignments = assignments.filter(a => a.dueDate === dateStr);
+        const dayExams = exams.filter(e => e.date === dateStr);
+        
+        return { classes: classes.length, assignments: dayAssignments.length, exams: dayExams.length };
+    };
+
+    const tabs = [
+        { id: 'classes', label: 'Classes', icon: BookOpen, color: 'blue' },
+        { id: 'assignments', label: 'Work', icon: AlertCircle, color: 'amber' },
+        { id: 'deadlines', label: 'Deadlines', icon: Calendar, color: 'rose' },
+        { id: 'exams', label: 'Exams', icon: Clock, color: 'cyan' }
+    ];
+
+    const handleAddClass = (e) => {
+        e.preventDefault();
+        addTimetable({
+            ...formData,
+            id: Date.now().toString(),
+            color: `hsl(${Math.random() * 360}, 70%, 50%)`
+        });
+        setFormData({});
+        setShowAddForm(false);
+    };
+
+    const handleAddAssignment = (e) => {
+        e.preventDefault();
+        addAssignment({
+            ...formData,
+            id: Date.now().toString(),
+            completed: false
+        });
+        setFormData({});
+        setShowAddForm(false);
+    };
+
+    const handleAddExam = (e) => {
+        e.preventDefault();
+        addExam({
+            ...formData,
+            id: Date.now().toString()
+        });
+        setFormData({});
+        setShowAddForm(false);
+    };
+
+    const toggleAssignmentComplete = (id) => {
+        const assignment = assignments.find(a => a.id === id);
+        updateAssignment(id, { ...assignment, completed: !assignment.completed });
+    };
+
+    const getUrgencyColor = (dateStr) => {
+        const daysLeft = differenceInDays(parseISO(dateStr), today);
+        if (daysLeft < 0) return 'text-gray-400';
+        if (daysLeft <= 2) return 'text-rose-600';
+        if (daysLeft <= 5) return 'text-amber-600';
+        return 'text-green-600';
+    };
+
+    // Helper functions for timetable
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const colors = [
+        { name: 'Indigo', value: '#6366f1' },
+        { name: 'Purple', value: '#9333ea' },
+        { name: 'Pink', value: '#ec4899' },
+        { name: 'Blue', value: '#3b82f6' },
+        { name: 'Green', value: '#10b981' },
+        { name: 'Orange', value: '#f59e0b' },
+        { name: 'Red', value: '#ef4444' },
+    ];
+
+    const handleClassSubmit = (e) => {
+        e.preventDefault();
+        if (!classFormData.subject || !classFormData.startTime || !classFormData.endTime) return;
+
+        if (editingClassId) {
+            updateTimetableClass(editingClassId, classFormData);
+            setEditingClassId(null);
+        } else {
+            addTimetableClass(classFormData);
+        }
+
+        setClassFormData({
+            subject: '',
+            type: 'lecture',
+            day: 'Monday',
+            startTime: '',
+            endTime: '',
+            location: '',
+            instructor: '',
+            color: '#6366f1',
+        });
+        setIsAddingClass(false);
+    };
+
+    const handleEditClass = (classItem) => {
+        setClassFormData({ ...classItem });
+        setEditingClassId(classItem.id);
+        setIsAddingClass(true);
+    };
+
+    const getTodayClasses = () => {
+        const today = format(new Date(), 'EEEE');
+        return timetable
+            .filter(c => c.day === today)
+            .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    };
+
+    const getClassesByDay = (day) => {
+        return timetable
+            .filter(c => c.day === day)
+            .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    };
+
+    const isClassNow = (startTime, endTime) => {
+        if (!isToday(new Date())) return false;
+        const now = new Date();
+        const currentTime = format(now, 'HH:mm');
+        return currentTime >= startTime && currentTime <= endTime;
+    };
+
+    const todayClasses = getTodayClasses();
+    const currentDay = format(new Date(), 'EEEE');
+
+    // Helper functions for history
+    const totalAssignments = assignments.length;
+    const completedAssignments = assignments.filter(a => a.completed).length;
+    const totalExams = exams.length;
+    const totalClasses = timetable.length;
+
+    const assignmentsByCourse = assignments.reduce((acc, assignment) => {
+        const course = assignment.course || 'Uncategorized';
+        if (!acc[course]) acc[course] = [];
+        acc[course].push(assignment);
+        return acc;
+    }, {});
+
+    const examsBySubject = exams.reduce((acc, exam) => {
+        const subject = exam.subject || 'General';
+        if (!acc[subject]) acc[subject] = [];
+        acc[subject].push(exam);
+        return acc;
+    }, {});
+
+    const historyViews = [
+        { id: 'summary', label: 'Summary', icon: Award },
+        { id: 'assignments', label: 'Assignments', icon: BookOpen },
+        { id: 'exams', label: 'Exams', icon: Clock },
+        { id: 'classes', label: 'Classes', icon: Calendar }
+    ];
+
+    // Group assignments by course for history
+    const assignmentsByCourse = assignments.reduce((acc, assignment) => {
+        const course = assignment.course || 'Uncategorized';
+        if (!acc[course]) acc[course] = [];
+        acc[course].push(assignment);
+        return acc;
+    }, {});
+
+    // Group exams by subject for history
+    const examsBySubject = exams.reduce((acc, exam) => {
+        const subject = exam.subject || 'General';
+        if (!acc[subject]) acc[subject] = [];
+        acc[subject].push(exam);
+        return acc;
+    }, {});
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="p-4 pt-12 pb-20"
+        >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+                <div>
+                    <h1 className="text-lg font-bold text-slate-800">Academic</h1>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Your semester at a glance</p>
+                </div>
+                <button
+                    onClick={() => setShowSemesterSetup(true)}
+                    className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                >
+                    <Settings size={16} />
+                </button>
+            </div>
+
+            {/* Main Navigation Tabs */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
+                <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setMainTab('overview')}
+                    className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${
+                        mainTab === 'overview'
+                            ? 'bg-indigo-500 text-white shadow-lg'
+                            : 'bg-white text-slate-600 border border-gray-100'
+                    }`}
+                >
+                    <Calendar size={18} />
+                    <span className="text-xs font-semibold">Overview</span>
+                </motion.button>
+                <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setMainTab('timetable')}
+                    className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${
+                        mainTab === 'timetable'
+                            ? 'bg-blue-500 text-white shadow-lg'
+                            : 'bg-white text-slate-600 border border-gray-100'
+                    }`}
+                >
+                    <Clock size={18} />
+                    <span className="text-xs font-semibold">Timetable</span>
+                </motion.button>
+                <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setMainTab('history')}
+                    className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${
+                        mainTab === 'history'
+                            ? 'bg-violet-500 text-white shadow-lg'
+                            : 'bg-white text-slate-600 border border-gray-100'
+                    }`}
+                >
+                    <History size={18} />
+                    <span className="text-xs font-semibold">History</span>
+                </motion.button>
+            </div>
+
+            {/* OVERVIEW TAB */}
+            {mainTab === 'overview' && (
+                <div>
+            {/* Week Calendar - Collapsible */}
+            <motion.div className="mb-3">
+                <button
+                    onClick={() => setShowCalendar(!showCalendar)}
+                    className="w-full flex items-center justify-between p-2.5 bg-white rounded-xl shadow-sm border border-gray-100 mb-2"
+                >
+                    <span className="text-xs font-semibold text-slate-700">This Week</span>
+                    {showCalendar ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+
+                <AnimatePresence>
+                    {showCalendar && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                        >
+                            <div className="grid grid-cols-7 gap-1 bg-white p-2.5 rounded-xl shadow-sm border border-gray-100">
+                                {weekDays.map((day, i) => {
+                                    const isToday = isSameDay(day, today);
+                                    const events = getEventsForDay(day);
+                                    return (
+                                        <div
+                                            key={i}
+                                            className={`text-center p-2 rounded-lg ${
+                                                isToday ? 'bg-indigo-100 ring-2 ring-indigo-500' : 'bg-gray-50'
+                                            }`}
+                                        >
+                                            <div className={`text-[10px] font-medium ${isToday ? 'text-indigo-600' : 'text-slate-500'}`}>
+                                                {format(day, 'EEE')}
+                                            </div>
+                                            <div className={`text-sm font-bold ${isToday ? 'text-indigo-600' : 'text-slate-800'}`}>
+                                                {format(day, 'd')}
+                                            </div>
+                                            <div className="flex justify-center gap-0.5 mt-1">
+                                                {events.classes > 0 && <div className="w-1 h-1 rounded-full bg-blue-500" />}
+                                                {events.assignments > 0 && <div className="w-1 h-1 rounded-full bg-amber-500" />}
+                                                {events.exams > 0 && <div className="w-1 h-1 rounded-full bg-cyan-500" />}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
+
+            {/* Tabs */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                        <motion.button
+                            key={tab.id}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`p-2.5 rounded-xl flex flex-col items-center gap-1 transition-all ${
+                                isActive
+                                    ? `bg-${tab.color}-500 text-white shadow-lg`
+                                    : 'bg-white text-slate-600 shadow-sm border border-gray-100'
+                            }`}
+                        >
+                            <Icon size={14} />
+                            <span className="text-[10px] font-semibold">{tab.label}</span>
+                        </motion.button>
+                    );
+                })}
+            </div>
+
+            {/* Content Area */}
+            <AnimatePresence mode="wait">
+                <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-3"
+                >
+                    {/* Classes Tab */}
+                    {activeTab === 'classes' && (
+                        <div className="space-y-3">
+                            {timetable.length === 0 ? (
+                                <div className="text-center py-8 text-slate-400">
+                                    <BookOpen size={32} className="mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">No classes added yet</p>
+                                </div>
+                            ) : (
+                                timetable.map((classItem) => (
+                                    <motion.div
+                                        key={classItem.id}
+                                        whileHover={{ scale: 1.01 }}
+                                        className="bg-white p-2.5 rounded-xl shadow-sm border border-gray-100"
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-1.5">
+                                                    <div
+                                                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                                                        style={{ backgroundColor: classItem.color }}
+                                                    />
+                                                    <h3 className="font-bold text-xs text-slate-800 truncate">{classItem.subject}</h3>
+                                                </div>
+                                                <p className="text-[10px] text-slate-500 mt-0.5">{classItem.type} • {classItem.day}</p>
+                                                <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-600">
+                                                    <span className="flex items-center gap-0.5">
+                                                        <Clock size={10} />
+                                                        {classItem.startTime} - {classItem.endTime}
+                                                    </span>
+                                                    {classItem.location && (
+                                                        <span className="text-slate-400 truncate">{classItem.location}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => deleteTimetable(classItem.id)}
+                                                className="text-rose-500 p-1 hover:bg-rose-50 rounded shrink-0"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                ))
+                            )}
+                        </div>
+                    )}
+
+                    {/* Assignments Tab */}
+                    {activeTab === 'assignments' && (
+                        <div className="space-y-3">
+                            {assignments.length === 0 ? (
+                                <div className="text-center py-8 text-slate-400">
+                                    <AlertCircle size={32} className="mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">No assignments yet</p>
+                                </div>
+                            ) : (
+                                assignments.map((assignment) => (
+                                    <motion.div
+                                        key={assignment.id}
+                                        whileHover={{ scale: 1.01 }}
+                                        className={`bg-white p-2.5 rounded-xl shadow-sm border ${
+                                            assignment.completed ? 'border-green-200 bg-green-50' : 'border-gray-100'
+                                        }`}
+                                    >
+                                        <div className="flex items-start gap-2">
+                                            <button
+                                                onClick={() => toggleAssignmentComplete(assignment.id)}
+                                                className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                                    assignment.completed
+                                                        ? 'bg-green-500 border-green-500 text-white'
+                                                        : 'border-slate-300'
+                                                }`}
+                                            >
+                                                {assignment.completed && <span className="text-[8px]">✓</span>}
+                                            </button>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className={`font-bold text-xs ${
+                                                    assignment.completed ? 'text-slate-500 line-through' : 'text-slate-800'
+                                                } truncate`}>
+                                                    {assignment.title}
+                                                </h3>
+                                                <p className="text-[10px] text-slate-500 mt-0.5 truncate">{assignment.course}</p>
+                                                <div className={`text-[10px] font-semibold mt-1 ${getUrgencyColor(assignment.dueDate)}`}>
+                                                    Due: {format(parseISO(assignment.dueDate), 'MMM d')}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => deleteAssignment(assignment.id)}
+                                                className="text-rose-500 p-1 hover:bg-rose-50 rounded shrink-0"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                ))
+                            )}
+                        </div>
+                    )}
+
+                    {/* Deadlines Tab */}
+                    {activeTab === 'deadlines' && (
+                        <div className="space-y-3">
+                            {semester.filter(e => e.type === 'deadline').length === 0 ? (
+                                <div className="text-center py-8 text-slate-400">
+                                    <Calendar size={32} className="mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">No deadlines set</p>
+                                </div>
+                            ) : (
+                                semester
+                                    .filter(e => e.type === 'deadline')
+                                    .sort((a, b) => new Date(a.date) - new Date(b.date))
+                                    .map((deadline) => {
+                                        const daysLeft = differenceInDays(parseISO(deadline.date), today);
+                                        return (
+                                            <motion.div
+                                                key={deadline.id}
+                                                whileHover={{ scale: 1.01 }}
+                                                className="bg-white p-2.5 rounded-xl shadow-sm border border-gray-100"
+                                            >
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="font-bold text-xs text-slate-800 truncate">{deadline.title}</h3>
+                                                        <p className="text-[10px] text-slate-500 mt-0.5">
+                                                            {format(parseISO(deadline.date), 'MMM d, yyyy')}
+                                                        </p>
+                                                    </div>
+                                                    <div className={`text-[10px] font-bold px-2 py-1 rounded shrink-0 ${
+                                                        daysLeft < 0 ? 'bg-gray-100 text-gray-500' :
+                                                        daysLeft <= 2 ? 'bg-rose-100 text-rose-600' :
+                                                        daysLeft <= 5 ? 'bg-amber-100 text-amber-600' :
+                                                        'bg-green-100 text-green-600'
+                                                    }`}>
+                                                        {daysLeft < 0 ? 'Past' : `${daysLeft}d`}
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })
+                            )}
+                        </div>
+                    )}
+
+                    {/* Exams Tab */}
+                    {activeTab === 'exams' && (
+                        <div className="space-y-3">
+                            {exams.length === 0 ? (
+                                <div className="text-center py-8 text-slate-400">
+                                    <Clock size={32} className="mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">No exams scheduled</p>
+                                </div>
+                            ) : (
+                                exams
+                                    .sort((a, b) => new Date(a.date) - new Date(b.date))
+                                    .map((exam) => {
+                                        const daysLeft = differenceInDays(parseISO(exam.date), today);
+                                        return (
+                                            <motion.div
+                                                key={exam.id}
+                                                whileHover={{ scale: 1.01 }}
+                                                className="bg-white p-2.5 rounded-xl shadow-sm border border-gray-100"
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="font-bold text-xs text-slate-800 truncate">{exam.title}</h3>
+                                                        <p className="text-[10px] text-slate-500 mt-0.5 truncate">{exam.subject}</p>
+                                                        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-600">
+                                                            <span>{format(parseISO(exam.date), 'MMM d')}</span>
+                                                            {exam.time && <span>• {exam.time}</span>}
+                                                        </div>
+                                                    </div>
+                                                    <div className={`text-[10px] font-bold px-2 py-1 rounded shrink-0 ${
+                                                        daysLeft < 0 ? 'bg-gray-100 text-gray-500' :
+                                                        daysLeft <= 2 ? 'bg-rose-100 text-rose-600' :
+                                                        daysLeft <= 7 ? 'bg-amber-100 text-amber-600' :
+                                                        'bg-cyan-100 text-cyan-600'
+                                                    }`}>
+                                                        {daysLeft < 0 ? 'Past' : `${daysLeft}d`}
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })
+                            )}
+                        </div>
+                    )}
+                </motion.div>
+            </AnimatePresence>
+
+            {/* Floating Add Button - Only in Overview */}
+            <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowAddForm(true)}
+                className="fixed bottom-20 right-4 w-12 h-12 bg-linear-to-br from-indigo-600 to-purple-600 text-white rounded-full shadow-xl flex items-center justify-center z-50"
+            >
+                <Plus size={20} />
+            </motion.button>
+                </div>
+            )}
+
+            {/* TIMETABLE TAB */}
+            {mainTab === 'timetable' && (
+                <div>
+                    {/* View Mode Toggle */}
+                    <div className="flex gap-2 mb-4">
+                        <button
+                            onClick={() => setViewMode('today')}
+                            className={`flex-1 py-3 rounded-xl font-medium transition-all text-xs ${
+                                viewMode === 'today'
+                                    ? 'bg-blue-100 text-blue-600 shadow-sm'
+                                    : 'bg-white text-slate-600 border border-gray-100'
+                            }`}
+                        >
+                            Today's Classes
+                        </button>
+                        <button
+                            onClick={() => setViewMode('week')}
+                            className={`flex-1 py-3 rounded-xl font-medium transition-all text-xs ${
+                                viewMode === 'week'
+                                    ? 'bg-blue-100 text-blue-600 shadow-sm'
+                                    : 'bg-white text-slate-600 border border-gray-100'
+                            }`}
+                        >
+                            Weekly View
+                        </button>
+                    </div>
+
+                    {/* Add/Edit Class Form */}
+                    <AnimatePresence>
+                        {isAddingClass && (
+                            <motion.form
+                                initial={{ height: 0, opacity: 0, marginBottom: 0 }}
+                                animate={{ height: 'auto', opacity: 1, marginBottom: 16 }}
+                                exit={{ height: 0, opacity: 0, marginBottom: 0 }}
+                                onSubmit={handleClassSubmit}
+                                className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 overflow-hidden"
+                            >
+                                <input
+                                    type="text"
+                                    placeholder="Subject Name"
+                                    value={classFormData.subject}
+                                    onChange={(e) => setClassFormData({ ...classFormData, subject: e.target.value })}
+                                    className="w-full text-sm font-medium placeholder:text-gray-400 border-b border-gray-200 focus:border-blue-600 focus:ring-0 p-2 mb-3 outline-none"
+                                    autoFocus
+                                />
+
+                                <div className="grid grid-cols-3 gap-2 mb-3">
+                                    {['lecture', 'lab', 'tutorial'].map((type) => (
+                                        <button
+                                            key={type}
+                                            type="button"
+                                            onClick={() => setClassFormData({ ...classFormData, type })}
+                                            className={`py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                                                classFormData.type === type
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'bg-gray-100 text-gray-500'
+                                            }`}
+                                        >
+                                            {type}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <select
+                                    value={classFormData.day}
+                                    onChange={(e) => setClassFormData({ ...classFormData, day: e.target.value })}
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 mb-3 text-xs focus:border-blue-600 focus:ring-1 focus:ring-blue-600 outline-none"
+                                >
+                                    {days.map((day) => (
+                                        <option key={day} value={day}>{day}</option>
+                                    ))}
+                                </select>
+
+                                <div className="grid grid-cols-2 gap-2 mb-3">
+                                    <div>
+                                        <label className="block text-[10px] font-medium text-slate-600 mb-1">Start Time</label>
+                                        <input
+                                            type="time"
+                                            value={classFormData.startTime}
+                                            onChange={(e) => setClassFormData({ ...classFormData, startTime: e.target.value })}
+                                            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:border-blue-600 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-medium text-slate-600 mb-1">End Time</label>
+                                        <input
+                                            type="time"
+                                            value={classFormData.endTime}
+                                            onChange={(e) => setClassFormData({ ...classFormData, endTime: e.target.value })}
+                                            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:border-blue-600 outline-none"
+                                        />
+                                    </div>
+                                </div>
+
+                                <input
+                                    type="text"
+                                    placeholder="Location (optional)"
+                                    value={classFormData.location}
+                                    onChange={(e) => setClassFormData({ ...classFormData, location: e.target.value })}
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 mb-3 text-xs focus:border-blue-600 outline-none"
+                                />
+
+                                <input
+                                    type="text"
+                                    placeholder="Instructor (optional)"
+                                    value={classFormData.instructor}
+                                    onChange={(e) => setClassFormData({ ...classFormData, instructor: e.target.value })}
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 mb-3 text-xs focus:border-blue-600 outline-none"
+                                />
+
+                                <div className="mb-3">
+                                    <label className="block text-[10px] font-medium text-slate-600 mb-2">Color</label>
+                                    <div className="flex gap-2">
+                                        {colors.map((color) => (
+                                            <button
+                                                key={color.value}
+                                                type="button"
+                                                onClick={() => setClassFormData({ ...classFormData, color: color.value })}
+                                                className={`w-6 h-6 rounded-full transition-all ${
+                                                    classFormData.color === color.value ? 'ring-2 ring-offset-2 ring-slate-400' : ''
+                                                }`}
+                                                style={{ backgroundColor: color.value }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2">
+                                    <button
+                                        type="submit"
+                                        className="flex-1 bg-blue-500 text-white py-2 rounded-lg font-medium text-xs shadow-sm"
+                                    >
+                                        {editingClassId ? 'Update Class' : 'Add Class'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsAddingClass(false);
+                                            setEditingClassId(null);
+                                            setClassFormData({
+                                                subject: '',
+                                                type: 'lecture',
+                                                day: 'Monday',
+                                                startTime: '',
+                                                endTime: '',
+                                                location: '',
+                                                instructor: '',
+                                                color: '#6366f1',
+                                            });
+                                        }}
+                                        className="px-4 bg-gray-100 text-slate-600 py-2 rounded-lg font-medium text-xs"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </motion.form>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Today's View */}
+                    {viewMode === 'today' && (
+                        <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <h2 className="text-sm font-bold text-slate-800">
+                                    {currentDay}'s Schedule ({todayClasses.length} classes)
+                                </h2>
+                                <motion.button
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => {
+                                        setIsAddingClass(true);
+                                        setClassFormData({ ...classFormData, day: currentDay });
+                                    }}
+                                    className="bg-blue-500 text-white p-2 rounded-lg text-xs font-semibold"
+                                >
+                                    <Plus size={14} />
+                                </motion.button>
+                            </div>
+                            {todayClasses.length === 0 ? (
+                                <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
+                                    <Calendar size={40} className="mx-auto text-slate-300 mb-3 opacity-50" />
+                                    <p className="text-sm text-slate-500">No classes today! 🎉</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {todayClasses.map((classItem) => {
+                                        const isNow = isClassNow(classItem.startTime, classItem.endTime);
+                                        return (
+                                            <motion.div
+                                                key={classItem.id}
+                                                layout
+                                                initial={{ opacity: 0, x: -20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                className={`p-3 rounded-xl shadow-sm border-l-4 relative ${
+                                                    isNow ? 'bg-linear-to-r from-green-50 to-white border-green-500' : 'bg-white border-gray-200'
+                                                }`}
+                                                style={{ borderLeftColor: classItem.color }}
+                                            >
+                                                {isNow && (
+                                                    <div className="absolute top-2 right-2 bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">
+                                                        Now
+                                                    </div>
+                                                )}
+                                                <div className="flex items-start gap-2">
+                                                    <div
+                                                        className="px-2 py-1 rounded-lg text-white font-bold text-[10px] shrink-0"
+                                                        style={{ backgroundColor: classItem.color }}
+                                                    >
+                                                        {classItem.startTime}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="font-bold text-xs text-slate-800">{classItem.subject}</h3>
+                                                        <p className="text-[10px] text-slate-500 mt-0.5">
+                                                            {classItem.type.toUpperCase()} • {classItem.startTime} - {classItem.endTime}
+                                                        </p>
+                                                        {classItem.location && (
+                                                            <div className="flex items-center gap-0.5 text-[10px] text-slate-600 mt-1">
+                                                                <MapPin size={10} />
+                                                                {classItem.location}
+                                                            </div>
+                                                        )}
+                                                        {classItem.instructor && (
+                                                            <p className="text-[10px] text-slate-500 mt-0.5">👨‍🏫 {classItem.instructor}</p>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex gap-1 shrink-0">
+                                                        <button
+                                                            onClick={() => handleEditClass(classItem)}
+                                                            className="text-slate-400 hover:text-blue-600 p-1"
+                                                        >
+                                                            <Edit2 size={12} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => deleteTimetableClass(classItem.id)}
+                                                            className="text-slate-400 hover:text-red-600 p-1"
+                                                        >
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Weekly View */}
+                    {viewMode === 'week' && (
+                        <div className="space-y-4">
+                            {!isAddingClass && (
+                                <motion.button
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setIsAddingClass(true)}
+                                    className="w-full bg-blue-500 text-white py-2.5 rounded-xl font-semibold text-xs shadow-sm flex items-center justify-center gap-2"
+                                >
+                                    <Plus size={16} />
+                                    Add Class
+                                </motion.button>
+                            )}
+                            {days.map((day) => {
+                                const classes = getClassesByDay(day);
+                                const isCurrentDay = day === currentDay;
+                                
+                                return (
+                                    <div key={day}>
+                                        <h3 className={`text-xs font-bold mb-2 ${isCurrentDay ? 'text-blue-600' : 'text-slate-700'}`}>
+                                            {day} {isCurrentDay && '(Today)'}
+                                            <span className="text-[10px] font-normal text-slate-400 ml-2">
+                                                {classes.length} {classes.length === 1 ? 'class' : 'classes'}
+                                            </span>
+                                        </h3>
+                                        {classes.length === 0 ? (
+                                            <p className="text-slate-400 text-[10px] pl-3">No classes</p>
+                                        ) : (
+                                            <div className="space-y-1.5">
+                                                {classes.map((classItem) => (
+                                                    <motion.div
+                                                        key={classItem.id}
+                                                        className="bg-white p-2.5 rounded-xl shadow-sm border-l-4 flex items-center justify-between"
+                                                        style={{ borderLeftColor: classItem.color }}
+                                                    >
+                                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                            <div
+                                                                className="px-2 py-1 rounded text-white text-[10px] font-bold shrink-0"
+                                                                style={{ backgroundColor: classItem.color }}
+                                                            >
+                                                                {classItem.startTime}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="font-semibold text-slate-800 text-xs truncate">
+                                                                    {classItem.subject}
+                                                                </p>
+                                                                <p className="text-[10px] text-slate-500">
+                                                                    {classItem.type} • {classItem.startTime}-{classItem.endTime}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-1 shrink-0">
+                                                            <button
+                                                                onClick={() => handleEditClass(classItem)}
+                                                                className="text-slate-400 hover:text-blue-600 p-1"
+                                                            >
+                                                                <Edit2 size={12} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => deleteTimetableClass(classItem.id)}
+                                                                className="text-slate-400 hover:text-red-600 p-1"
+                                                            >
+                                                                <Trash2 size={12} />
+                                                            </button>
+                                                        </div>
+                                                    </motion.div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* HISTORY TAB */}
+            {mainTab === 'history' && (
+                <div>
+                    {/* Semester Info */}
+                    <div className="mb-3 bg-white p-3 rounded-xl border border-gray-100">
+                        <h2 className="text-xs font-bold text-slate-800">
+                            {semesterConfig?.name || 'No active semester'}
+                        </h2>
+                        {semesterConfig?.startDate && semesterConfig?.endDate && (
+                            <p className="text-[10px] text-slate-500 mt-0.5">
+                                {format(parseISO(semesterConfig.startDate), 'MMM d')} - {format(parseISO(semesterConfig.endDate), 'MMM d, yyyy')}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* History View Tabs */}
+                    <div className="grid grid-cols-4 gap-2 mb-4">
+                        {historyViews.map((view) => {
+                            const Icon = view.icon;
+                            const isActive = activeHistoryView === view.id;
+                            return (
+                                <motion.button
+                                    key={view.id}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setActiveHistoryView(view.id)}
+                                    className={`p-2 rounded-lg flex flex-col items-center gap-1 transition-all text-xs font-semibold ${
+                                        isActive
+                                            ? 'bg-violet-500 text-white shadow-lg'
+                                            : 'bg-white text-slate-600 border border-gray-100'
+                                    }`}
+                                >
+                                    <Icon size={14} />
+                                    <span className="text-[10px]">{view.label}</span>
+                                </motion.button>
+                            );
+                        })}
+                    </div>
+
+                    {/* History Content */}
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activeHistoryView}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="space-y-3"
+                        >
+                            {/* Summary View */}
+                            {activeHistoryView === 'summary' && (
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="bg-white p-3 rounded-xl border border-gray-100">
+                                            <div className="text-2xl font-bold text-slate-800">{totalClasses}</div>
+                                            <div className="text-[10px] text-slate-500">Total Classes</div>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl border border-gray-100">
+                                            <div className="text-2xl font-bold text-indigo-600">{totalAssignments}</div>
+                                            <div className="text-[10px] text-slate-500">Assignments</div>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl border border-gray-100">
+                                            <div className="text-2xl font-bold text-green-600">{completedAssignments}</div>
+                                            <div className="text-[10px] text-slate-500">Completed</div>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl border border-gray-100">
+                                            <div className="text-2xl font-bold text-cyan-600">{totalExams}</div>
+                                            <div className="text-[10px] text-slate-500">Exams</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-3 rounded-xl border border-gray-100">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs font-bold text-slate-800">Assignment Completion</span>
+                                            <span className="text-xs font-bold text-indigo-600">
+                                                {totalAssignments > 0 ? Math.round((completedAssignments / totalAssignments) * 100) : 0}%
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2">
+                                            <div
+                                                className="bg-indigo-600 h-2 rounded-full transition-all"
+                                                style={{ width: `${totalAssignments > 0 ? (completedAssignments / totalAssignments) * 100 : 0}%` }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {semesterConfig?.courses && semesterConfig.courses.length > 0 && (
+                                        <div className="bg-white p-3 rounded-xl border border-gray-100">
+                                            <h3 className="text-xs font-bold text-slate-800 mb-2">Enrolled Courses</h3>
+                                            <div className="space-y-1.5">
+                                                {semesterConfig.courses.map((course, index) => (
+                                                    <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
+                                                        <div>
+                                                            <p className="text-xs font-semibold text-slate-800">{course.code}</p>
+                                                            <p className="text-[10px] text-slate-500">{course.name}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Assignments View */}
+                            {activeHistoryView === 'assignments' && (
+                                <div className="space-y-3">
+                                    {Object.keys(assignmentsByCourse).length === 0 ? (
+                                        <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
+                                            <BookOpen size={40} className="mx-auto mb-3 opacity-50 text-slate-300" />
+                                            <p className="text-sm text-slate-500">No assignments recorded</p>
+                                        </div>
+                                    ) : (
+                                        Object.entries(assignmentsByCourse).map(([course, courseAssignments]) => (
+                                            <div key={course} className="bg-white p-3 rounded-xl border border-gray-100">
+                                                <button
+                                                    onClick={() => setExpandedHistoryItem(expandedHistoryItem === course ? null : course)}
+                                                    className="w-full flex items-center justify-between mb-2"
+                                                >
+                                                    <div className="text-left">
+                                                        <h3 className="text-xs font-bold text-slate-800">{course}</h3>
+                                                        <p className="text-[10px] text-slate-500">
+                                                            {courseAssignments.filter(a => a.completed).length}/{courseAssignments.length} completed
+                                                        </p>
+                                                    </div>
+                                                    {expandedHistoryItem === course ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                                </button>
+                                                <AnimatePresence>
+                                                    {expandedHistoryItem === course && (
+                                                        <motion.div
+                                                            initial={{ height: 0, opacity: 0 }}
+                                                            animate={{ height: 'auto', opacity: 1 }}
+                                                            exit={{ height: 0, opacity: 0 }}
+                                                            className="space-y-1.5 overflow-hidden"
+                                                        >
+                                                            {courseAssignments
+                                                                .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate))
+                                                                .map((assignment) => (
+                                                                    <div
+                                                                        key={assignment.id}
+                                                                        className={`p-2 rounded-lg flex items-start gap-2 ${
+                                                                            assignment.completed ? 'bg-green-50' : 'bg-slate-50'
+                                                                        }`}
+                                                                    >
+                                                                        {assignment.completed ? (
+                                                                            <CheckCircle size={12} className="text-green-600 shrink-0 mt-0.5" />
+                                                                        ) : (
+                                                                            <XCircle size={12} className="text-slate-400 shrink-0 mt-0.5" />
+                                                                        )}
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <p className={`text-xs font-semibold ${assignment.completed ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
+                                                                                {assignment.title}
+                                                                            </p>
+                                                                            <p className="text-[10px] text-slate-500">
+                                                                                Due: {format(parseISO(assignment.dueDate), 'MMM d, yyyy')}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Exams View */}
+                            {activeHistoryView === 'exams' && (
+                                <div className="space-y-3">
+                                    {Object.keys(examsBySubject).length === 0 ? (
+                                        <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
+                                            <Clock size={40} className="mx-auto mb-3 opacity-50 text-slate-300" />
+                                            <p className="text-sm text-slate-500">No exams recorded</p>
+                                        </div>
+                                    ) : (
+                                        Object.entries(examsBySubject).map(([subject, subjectExams]) => (
+                                            <div key={subject} className="bg-white p-3 rounded-xl border border-gray-100">
+                                                <h3 className="text-xs font-bold text-slate-800 mb-2">{subject}</h3>
+                                                <div className="space-y-1.5">
+                                                    {subjectExams
+                                                        .sort((a, b) => new Date(b.date) - new Date(a.date))
+                                                        .map((exam) => (
+                                                            <div key={exam.id} className="p-2 bg-cyan-50 rounded-lg">
+                                                                <p className="text-xs font-semibold text-slate-800">{exam.title}</p>
+                                                                <p className="text-[10px] text-slate-500">
+                                                                    {format(parseISO(exam.date), 'MMM d, yyyy')}
+                                                                    {exam.time && ` at ${exam.time}`}
+                                                                </p>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Classes View */}
+                            {activeHistoryView === 'classes' && (
+                                <div className="space-y-3">
+                                    {timetable.length === 0 ? (
+                                        <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
+                                            <Calendar size={40} className="mx-auto mb-3 opacity-50 text-slate-300" />
+                                            <p className="text-sm text-slate-500">No classes recorded</p>
+                                        </div>
+                                    ) : (
+                                        days.map(day => {
+                                            const dayClasses = timetable.filter(c => c.day === day);
+                                            if (dayClasses.length === 0) return null;
+                                            return (
+                                                <div key={day} className="bg-white p-3 rounded-xl border border-gray-100">
+                                                    <h3 className="text-xs font-bold text-slate-800 mb-2">{day}</h3>
+                                                    <div className="space-y-1.5">
+                                                        {dayClasses
+                                                            .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                                                            .map((classItem) => (
+                                                                <div
+                                                                    key={classItem.id}
+                                                                    className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border-l-2"
+                                                                    style={{ borderLeftColor: classItem.color }}
+                                                                >
+                                                                    <div className="text-[10px] font-bold shrink-0" style={{ color: classItem.color }}>
+                                                                        {classItem.startTime}
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="font-semibold text-xs text-slate-800">{classItem.subject}</p>
+                                                                        <p className="text-[10px] text-slate-500">
+                                                                            {classItem.type}
+                                                                            {classItem.location && ` • ${classItem.location}`}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            )}
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
+            )}
+
+            {/* Add Form Modal - Only shown in Overview tab */}
+            {mainTab === 'overview' && (
+            <AnimatePresence>
+                {showAddForm && (
+            <AnimatePresence>
+                {showAddForm && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center md:justify-center"
+                        onClick={() => setShowAddForm(false)}
+                    >
+                        <motion.div
+                            initial={{ y: '100%' }}
+                            animate={{ y: 0 }}
+                            exit={{ y: '100%' }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white w-full md:max-w-md md:mx-auto rounded-t-3xl md:rounded-2xl p-4 max-h-[80vh] overflow-y-auto"
+                        >
+                            <div className="flex justify-between items-center mb-3">
+                                <h2 className="text-base font-bold text-slate-800">
+                                    Add {activeTab === 'classes' ? 'Class' : activeTab === 'assignments' ? 'Assignment' : activeTab === 'exams' ? 'Exam' : 'Deadline'}
+                                </h2>
+                                <button onClick={() => setShowAddForm(false)} className="text-slate-400 hover:text-slate-600">
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            {activeTab === 'classes' && (
+                                <form onSubmit={handleAddClass} className="space-y-2.5">
+                                    <input
+                                        type="text"
+                                        placeholder="Subject"
+                                        required
+                                        value={formData.subject || ''}
+                                        onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                                        className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    />
+                                    <select
+                                        value={formData.type || 'lecture'}
+                                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                                        className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    >
+                                        <option value="lecture">Lecture</option>
+                                        <option value="lab">Lab</option>
+                                        <option value="tutorial">Tutorial</option>
+                                    </select>
+                                    <select
+                                        required
+                                        value={formData.day || ''}
+                                        onChange={(e) => setFormData({ ...formData, day: e.target.value })}
+                                        className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    >
+                                        <option value="">Select Day</option>
+                                        {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => (
+                                            <option key={day} value={day}>{day}</option>
+                                        ))}
+                                    </select>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input
+                                            type="time"
+                                            placeholder="Start Time"
+                                            required
+                                            value={formData.startTime || ''}
+                                            onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                                            className="p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        />
+                                        <input
+                                            type="time"
+                                            placeholder="End Time"
+                                            required
+                                            value={formData.endTime || ''}
+                                            onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                                            className="p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Location (optional)"
+                                        value={formData.location || ''}
+                                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                        className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    />
+                                    <button
+                                        type="submit"
+                                        className="w-full p-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold text-xs transition-colors"
+                                    >
+                                        Add Class
+                                    </button>
+                                </form>
+                            )}
+
+                            {activeTab === 'assignments' && (
+                                <form onSubmit={handleAddAssignment} className="space-y-2.5">
+                                    <input
+                                        type="text"
+                                        placeholder="Assignment Title"
+                                        required
+                                        value={formData.title || ''}
+                                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                        className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                                    />
+                                    {semesterConfig?.courses && semesterConfig.courses.length > 0 ? (
+                                        <select
+                                            required
+                                            value={formData.course || ''}
+                                            onChange={(e) => setFormData({ ...formData, course: e.target.value })}
+                                            className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                                        >
+                                            <option value="">Select Course</option>
+                                            {semesterConfig.courses.map((course, index) => (
+                                                <option key={index} value={`${course.code} - ${course.name}`}>
+                                                    {course.code} - {course.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div className="p-2.5 rounded-lg border border-amber-200 bg-amber-50 text-[10px] text-amber-700">
+                                            No courses configured. Please setup semester first.
+                                        </div>
+                                    )}
+                                    <input
+                                        type="date"
+                                        required
+                                        value={formData.dueDate || ''}
+                                        onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                                        className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                                    />
+                                    <textarea
+                                        placeholder="Description (optional)"
+                                        rows={2}
+                                        value={formData.description || ''}
+                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                        className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={!semesterConfig?.courses || semesterConfig.courses.length === 0}
+                                        className="w-full p-2.5 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-xs transition-colors"
+                                    >
+                                        Add Assignment
+                                    </button>
+                                </form>
+                            )}
+
+                            {activeTab === 'exams' && (
+                                <form onSubmit={handleAddExam} className="space-y-2.5">
+                                    <input
+                                        type="text"
+                                        placeholder="Exam Title"
+                                        required
+                                        value={formData.title || ''}
+                                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                        className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                                    />
+                                    {semesterConfig?.courses && semesterConfig.courses.length > 0 ? (
+                                        <select
+                                            required
+                                            value={formData.subject || ''}
+                                            onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                                            className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                                        >
+                                            <option value="">Select Subject</option>
+                                            {semesterConfig.courses.map((course, index) => (
+                                                <option key={index} value={`${course.code} - ${course.name}`}>
+                                                    {course.code} - {course.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div className="p-2.5 rounded-lg border border-cyan-200 bg-cyan-50 text-[10px] text-cyan-700">
+                                            No courses configured. Please setup semester first.
+                                        </div>
+                                    )}
+                                    <input
+                                        type="date"
+                                        required
+                                        value={formData.date || ''}
+                                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                        className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                                    />
+                                    <input
+                                        type="time"
+                                        placeholder="Time (optional)"
+                                        value={formData.time || ''}
+                                        onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                                        className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={!semesterConfig?.courses || semesterConfig.courses.length === 0}
+                                        className="w-full p-2.5 bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-xs transition-colors"
+                                    >
+                                        Add Exam
+                                    </button>
+                                </form>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            )}
+
+            {/* Semester Setup Modal */}
+            <AnimatePresence>
+                {showSemesterSetup && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center md:justify-center"
+                        onClick={() => setShowSemesterSetup(false)}
+                    >
+                        <motion.div
+                            initial={{ y: '100%' }}
+                            animate={{ y: 0 }}
+                            exit={{ y: '100%' }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white rounded-t-3xl md:rounded-2xl p-4 w-full md:max-w-lg md:mx-auto max-h-[85vh] overflow-y-auto"
+                        >
+                            <div className="flex justify-between items-center mb-3">
+                                <h2 className="text-base font-bold text-slate-800">Semester Setup</h2>
+                                <button onClick={() => setShowSemesterSetup(false)} className="text-slate-400 hover:text-slate-600">
+                                    <X size={18} />
+                                </button>
+                            </div>
+                            <form className="space-y-3" onSubmit={async (e) => {
+                                e.preventDefault();
+                                if (localSemesterConfig?.name && localSemesterConfig?.startDate && localSemesterConfig?.endDate) {
+                                    await setSemesterConfig(localSemesterConfig);
+                                    setShowSemesterSetup(false);
+                                }
+                            }}>
+                                <div>
+                                    <label className="block text-[10px] font-semibold text-slate-600 mb-1.5">Semester Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g., Spring 2025"
+                                        required
+                                        autoComplete="off"
+                                        className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        value={localSemesterConfig?.name || ''}
+                                        onChange={(e) => {
+                                            e.stopPropagation();
+                                            setLocalSemesterConfig({ ...(localSemesterConfig || {}), name: e.target.value });
+                                        }}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="block text-[10px] font-semibold text-slate-600 mb-1.5">Start Date</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                            value={localSemesterConfig?.startDate || ''}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                setLocalSemesterConfig({ ...(localSemesterConfig || {}), startDate: e.target.value });
+                                            }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-semibold text-slate-600 mb-1.5">End Date</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            className="w-full p-2.5 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                            value={localSemesterConfig?.endDate || ''}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                setLocalSemesterConfig({ ...(localSemesterConfig || {}), endDate: e.target.value });
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                                
+                                <div className="pt-2">
+                                    <label className="block text-[10px] font-semibold text-slate-600 mb-1.5">Courses</label>
+                                    <div className="space-y-2">
+                                        {(localSemesterConfig?.courses || []).map((course, index) => (
+                                            <div key={index} className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Course Code (e.g., CSE101)"
+                                                    autoComplete="off"
+                                                    value={course.code || ''}
+                                                    onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        const newCourses = [...(localSemesterConfig?.courses || [])];
+                                                        newCourses[index] = { ...course, code: e.target.value };
+                                                        setLocalSemesterConfig({ ...(localSemesterConfig || {}), courses: newCourses });
+                                                    }}
+                                                    className="flex-1 p-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Course Name"
+                                                    autoComplete="off"
+                                                    value={course.name || ''}
+                                                    onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        const newCourses = [...(localSemesterConfig?.courses || [])];
+                                                        newCourses[index] = { ...course, name: e.target.value };
+                                                        setLocalSemesterConfig({ ...(localSemesterConfig || {}), courses: newCourses });
+                                                    }}
+                                                    className="flex-1 p-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const newCourses = (localSemesterConfig?.courses || []).filter((_, i) => i !== index);
+                                                        setLocalSemesterConfig({ ...(localSemesterConfig || {}), courses: newCourses });
+                                                    }}
+                                                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg shrink-0"
+                                                >
+                                                    <X size={16} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const newCourses = [...(localSemesterConfig?.courses || []), { code: '', name: '' }];
+                                                setLocalSemesterConfig({ ...(localSemesterConfig || {}), courses: newCourses });
+                                            }}
+                                            className="w-full p-2 border border-dashed border-gray-300 rounded-lg text-xs text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                                        >
+                                            + Add Course
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    className="w-full p-3 bg-indigo-500 text-white rounded-xl font-semibold text-sm mt-4"
+                                >
+                                    Save Semester Setup
+                                </button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </motion.div>
+    );
+};
+
+export default Semester;

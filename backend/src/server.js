@@ -10,6 +10,11 @@ import semesterRoutes from './routes/semester.js';
 import timetableRoutes from './routes/timetable.js';
 import assignmentRoutes from './routes/assignments.js';
 import examRoutes from './routes/exams.js';
+import debtRoutes from './routes/debts.js';
+import noteRoutes from './routes/notes.js';
+import sharedExpenseRoutes from './routes/sharedExpenses.js';
+import eventRoutes from './routes/events.js';
+import habitRoutes from './routes/habits.js';
 
 dotenv.config();
 
@@ -41,6 +46,11 @@ app.get('/', (req, res) => {
             timetable: '/api/timetable',
             assignments: '/api/assignments',
             exams: '/api/exams',
+            debts: '/api/debts',
+            notes: '/api/notes',
+            sharedExpenses: '/api/shared-expenses',
+            events: '/api/events',
+            habits: '/api/habits',
         },
         documentation: 'See DEPLOYMENT.md for API documentation'
     });
@@ -65,6 +75,11 @@ app.use('/api/semester', semesterRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/exams', examRoutes);
+app.use('/api/debts', debtRoutes);
+app.use('/api/notes', noteRoutes);
+app.use('/api/shared-expenses', sharedExpenseRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/habits', habitRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

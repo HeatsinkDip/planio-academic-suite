@@ -11,60 +11,78 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check if user is logged in on mount
-        const token = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('user');
-        
-        if (token && storedUser && storedUser !== 'undefined') {
+        const verifyAuth = async () => {
             try {
-                setCurrentUser(JSON.parse(storedUser));
-                setIsAuthenticated(true);
-                // Verify token is still valid
-                authAPI.getProfile()
-                    .then(data => {
-                        setCurrentUser(data.user);
-                        localStorage.setItem('user', JSON.stringify(data.user));
-                    })
-                    .catch(() => {
-                        // Token invalid, clear auth
+                // Check if user is logged in on mount
+                const token = localStorage.getItem('token');
+                const storedUser = localStorage.getItem('user');
+                
+                if (token && storedUser && storedUser !== 'undefined') {
+                    try {
+                        const parsedUser = JSON.parse(storedUser);
+                        setCurrentUser(parsedUser);
+                        setIsAuthenticated(true);
+                        
+                        // Verify token is still valid
+                        try {
+                            const data = await authAPI.getProfile();
+                            // Backend returns user object directly or nested
+                            const userData = data.user || data;
+                            setCurrentUser(userData);
+                            localStorage.setItem('user', JSON.stringify(userData));
+                            console.log('✅ Authentication verified on page load:', userData);
+                        } catch (verifyError) {
+                            // Token invalid, clear auth
+                            console.error('❌ Token verification failed:', verifyError);
+                            localStorage.removeItem('token');
+                            localStorage.removeItem('user');
+                            setCurrentUser(null);
+                            setIsAuthenticated(false);
+                        }
+                    } catch (parseError) {
+                        // Invalid JSON, clear storage
+                        console.error('Error parsing user data:', parseError);
                         localStorage.removeItem('token');
                         localStorage.removeItem('user');
                         setCurrentUser(null);
                         setIsAuthenticated(false);
-                    })
-                    .finally(() => setLoading(false));
+                    }
+                } else {
+                    // Clear any invalid data
+                    if (storedUser === 'undefined' || token === 'undefined') {
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('user');
+                    }
+                    setIsAuthenticated(false);
+                }
             } catch (error) {
-                // Invalid JSON, clear storage
-                console.error('Error parsing user data:', error);
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                setCurrentUser(null);
+                console.error('Auth verification error:', error);
                 setIsAuthenticated(false);
+            } finally {
                 setLoading(false);
             }
-        } else {
-            // Clear any invalid data
-            if (storedUser === 'undefined' || token === 'undefined') {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-            }
-            setLoading(false);
-        }
+        };
+
+        verifyAuth();
     }, []);
 
     const signup = async ({ name, email, password }) => {
         try {
             const data = await authAPI.register({ name, email, password });
             
+            // Backend returns flat object: { _id, name, email, token }
+            const { token, ...user } = data;
+            
             // Store token and user
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
+            localStorage.setItem('token', token);
+            localStorage.setItem('user', JSON.stringify(user));
             
             // Update state
-            setCurrentUser(data.user);
+            setCurrentUser(user);
             setIsAuthenticated(true);
             setLoading(false);
             
+            console.log('✅ Signup successful:', user);
             return { success: true };
         } catch (error) {
             console.error('Signup error:', error);
@@ -79,15 +97,19 @@ export const AuthProvider = ({ children }) => {
         try {
             const data = await authAPI.login({ email, password });
             
+            // Backend returns flat object: { _id, name, email, token }
+            const { token, ...user } = data;
+            
             // Store token and user
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
+            localStorage.setItem('token', token);
+            localStorage.setItem('user', JSON.stringify(user));
             
             // Update state
-            setCurrentUser(data.user);
+            setCurrentUser(user);
             setIsAuthenticated(true);
             setLoading(false);
             
+            console.log('✅ Login successful:', user);
             return { success: true };
         } catch (error) {
             console.error('Login error:', error);

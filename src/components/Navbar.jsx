@@ -14,16 +14,12 @@ const Navbar = ({ activeTab, setActiveTab }) => {
 
     const allServices = [
         { id: 'semester', icon: GraduationCap, label: 'Semester Tracker', color: 'from-purple-500 to-pink-500' },
-        { id: 'timetable', icon: Calendar, label: 'Timetable', color: 'from-blue-500 to-cyan-500' },
-        { id: 'academicHistory', icon: History, label: 'Academic History', color: 'from-violet-500 to-purple-500' },
         { id: 'focus', icon: Clock, label: 'Focus Timer', color: 'from-orange-500 to-red-500' },
         { id: 'sharedExpenses', icon: Users, label: 'Shared Expenses', color: 'from-green-500 to-emerald-500' },
         { id: 'notes', icon: BookOpen, label: 'Notes', color: 'from-indigo-500 to-purple-500' },
         { id: 'habits', icon: Target, label: 'Habit Tracker', color: 'from-pink-500 to-rose-500' },
         { id: 'events', icon: Sparkles, label: 'College Events', color: 'from-yellow-500 to-orange-500' },
-        { id: 'taskHistory', icon: History, label: 'Task History', color: 'from-slate-500 to-gray-600' },
-        { id: 'wallets', icon: Wallet, label: 'Wallets', color: 'from-teal-500 to-cyan-500' },
-        { id: 'transactionHistory', icon: TrendingUp, label: 'Transactions', color: 'from-blue-500 to-indigo-500' },
+
         { id: 'debts', icon: DollarSign, label: 'Debts & Loans', color: 'from-red-500 to-pink-500' },
     ];
 

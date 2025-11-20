@@ -97,7 +97,9 @@ const Profile = () => {
                     )}
                 </div>
                 <p className="text-sm opacity-75">
-                    Member since {new Date(currentUser?.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    {currentUser?.createdAt 
+                        ? `Member since ${new Date(currentUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+                        : 'Welcome to Planio!'}
                 </p>
             </motion.div>
 

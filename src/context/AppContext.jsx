@@ -8,6 +8,11 @@ import {
     timetableAPI,
     assignmentsAPI,
     examsAPI,
+    debtsAPI,
+    notesAPI,
+    sharedExpensesAPI,
+    eventsAPI,
+    habitsAPI,
 } from '../services/api';
 
 const AppContext = createContext();
@@ -39,12 +44,14 @@ export const AppProvider = ({ children }) => {
     // Load data when authenticated
     useEffect(() => {
         if (isAuthenticated && currentUser) {
+            console.log('🔄 Loading user data...');
             loadAllData();
-        } else {
+        } else if (!isAuthenticated) {
             // Clear data on logout
+            console.log('🗑️ Clearing data (user logged out)');
             clearAllData();
         }
-    }, [isAuthenticated, currentUser]);
+    }, [isAuthenticated, currentUser?._id]);
 
     const loadAllData = async () => {
         setLoading(true);
@@ -58,6 +65,11 @@ export const AppProvider = ({ children }) => {
                 timetableData,
                 assignmentsData,
                 examsData,
+                debtsData,
+                notesData,
+                sharedExpensesData,
+                eventsData,
+                habitsData,
             ] = await Promise.allSettled([
                 tasksAPI.getAll(),
                 transactionsAPI.getAll(),
@@ -67,6 +79,11 @@ export const AppProvider = ({ children }) => {
                 timetableAPI.getAll(),
                 assignmentsAPI.getAll(),
                 examsAPI.getAll(),
+                debtsAPI.getAll(),
+                notesAPI.getAll(),
+                sharedExpensesAPI.getAll(),
+                eventsAPI.getAll(),
+                habitsAPI.getAll(),
             ]);
 
             if (tasksData.status === 'fulfilled') {
@@ -128,6 +145,36 @@ export const AppProvider = ({ children }) => {
                 console.log('✅ Exams loaded:', examsData.value.length);
                 setExams(examsData.value);
             }
+            if (debtsData.status === 'fulfilled') {
+                console.log('✅ Debts loaded:', debtsData.value.length);
+                setDebts(debtsData.value);
+            } else {
+                console.error('❌ Debts load failed:', debtsData.reason);
+            }
+            if (notesData.status === 'fulfilled') {
+                console.log('✅ Notes loaded:', notesData.value.length);
+                setNotes(notesData.value);
+            } else {
+                console.error('❌ Notes load failed:', notesData.reason);
+            }
+            if (sharedExpensesData.status === 'fulfilled') {
+                console.log('✅ Shared expenses loaded:', sharedExpensesData.value.length);
+                setSharedExpenses(sharedExpensesData.value);
+            } else {
+                console.error('❌ Shared expenses load failed:', sharedExpensesData.reason);
+            }
+            if (eventsData.status === 'fulfilled') {
+                console.log('✅ Events loaded:', eventsData.value.length);
+                setEvents(eventsData.value);
+            } else {
+                console.error('❌ Events load failed:', eventsData.reason);
+            }
+            if (habitsData.status === 'fulfilled') {
+                console.log('✅ Habits loaded:', habitsData.value.length);
+                setHabits(habitsData.value);
+            } else {
+                console.error('❌ Habits load failed:', habitsData.reason);
+            }
         } catch (error) {
             console.error('Error loading data:', error);
         } finally {
@@ -141,6 +188,11 @@ export const AppProvider = ({ children }) => {
         setWallets([]);
         setSemesterConfigState(null);
         setSemester([]);
+        setDebts([]);
+        setNotes([]);
+        setSharedExpenses([]);
+        setEvents([]);
+        setHabits([]);
         setTimetable([]);
         setAssignments([]);
         setExams([]);
@@ -160,7 +212,12 @@ export const AppProvider = ({ children }) => {
     const toggleTask = async (id) => {
         try {
             const task = tasks.find(t => t._id === id);
-            const updated = await tasksAPI.update(id, { ...task, completed: !task.completed });
+            const updatedData = { 
+                ...task, 
+                completed: !task.completed,
+                completedAt: !task.completed ? new Date().toISOString() : null
+            };
+            const updated = await tasksAPI.update(id, updatedData);
             setTasks((prev) => prev.map((t) => (t._id === id ? updated : t)));
         } catch (error) {
             console.error('Error toggling task:', error);
@@ -367,17 +424,144 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-    // Debt Actions (local storage for now)
-    const addDebt = (debt) => {
-        setDebts((prev) => [{ id: Date.now(), createdAt: new Date().toISOString(), ...debt }, ...prev]);
+    // Debt Actions
+    const addDebt = async (debt) => {
+        try {
+            const newDebt = await debtsAPI.create(debt);
+            setDebts((prev) => [newDebt, ...prev]);
+        } catch (error) {
+            console.error('Error adding debt:', error);
+        }
     };
 
-    const updateDebt = (id, updates) => {
-        setDebts((prev) => prev.map((d) => (d.id === id ? { ...d, ...updates } : d)));
+    const updateDebt = async (id, updates) => {
+        try {
+            const updated = await debtsAPI.update(id, updates);
+            setDebts((prev) => prev.map((d) => (d._id === id ? updated : d)));
+        } catch (error) {
+            console.error('Error updating debt:', error);
+        }
     };
 
-    const deleteDebt = (id) => {
-        setDebts((prev) => prev.filter((d) => d.id !== id));
+    const deleteDebt = async (id) => {
+        try {
+            await debtsAPI.delete(id);
+            setDebts((prev) => prev.filter((d) => d._id !== id));
+        } catch (error) {
+            console.error('Error deleting debt:', error);
+        }
+    };
+
+    // Note Actions
+    const addNote = async (note) => {
+        try {
+            const newNote = await notesAPI.create(note);
+            setNotes((prev) => [newNote, ...prev]);
+        } catch (error) {
+            console.error('Error adding note:', error);
+        }
+    };
+
+    const updateNote = async (id, updates) => {
+        try {
+            const updated = await notesAPI.update(id, updates);
+            setNotes((prev) => prev.map((n) => (n._id === id ? updated : n)));
+        } catch (error) {
+            console.error('Error updating note:', error);
+        }
+    };
+
+    const deleteNote = async (id) => {
+        try {
+            await notesAPI.delete(id);
+            setNotes((prev) => prev.filter((n) => n._id !== id));
+        } catch (error) {
+            console.error('Error deleting note:', error);
+        }
+    };
+
+    // Shared Expense Actions
+    const addSharedExpense = async (expense) => {
+        try {
+            const newExpense = await sharedExpensesAPI.create(expense);
+            setSharedExpenses((prev) => [newExpense, ...prev]);
+        } catch (error) {
+            console.error('Error adding shared expense:', error);
+        }
+    };
+
+    const updateSharedExpense = async (id, updates) => {
+        try {
+            const updated = await sharedExpensesAPI.update(id, updates);
+            setSharedExpenses((prev) => prev.map((e) => (e._id === id ? updated : e)));
+        } catch (error) {
+            console.error('Error updating shared expense:', error);
+        }
+    };
+
+    const deleteSharedExpense = async (id) => {
+        try {
+            await sharedExpensesAPI.delete(id);
+            setSharedExpenses((prev) => prev.filter((e) => e._id !== id));
+        } catch (error) {
+            console.error('Error deleting shared expense:', error);
+        }
+    };
+
+    // Event Actions
+    const addEvent = async (event) => {
+        try {
+            const newEvent = await eventsAPI.create(event);
+            setEvents((prev) => [newEvent, ...prev]);
+        } catch (error) {
+            console.error('Error adding event:', error);
+        }
+    };
+
+    const updateEvent = async (id, updates) => {
+        try {
+            const updated = await eventsAPI.update(id, updates);
+            setEvents((prev) => prev.map((e) => (e._id === id ? updated : e)));
+        } catch (error) {
+            console.error('Error updating event:', error);
+        }
+    };
+
+    const deleteEvent = async (id) => {
+        try {
+            await eventsAPI.delete(id);
+            setEvents((prev) => prev.filter((e) => e._id !== id));
+        } catch (error) {
+            console.error('Error deleting event:', error);
+        }
+    };
+
+    // Habit Actions
+    const addHabit = async (habit) => {
+        try {
+            const newHabit = await habitsAPI.create(habit);
+            setHabits((prev) => [newHabit, ...prev]);
+        } catch (error) {
+            console.error('Error adding habit:', error);
+        }
+    };
+
+    const toggleHabitToday = async (id) => {
+        try {
+            const updated = await habitsAPI.toggleToday(id);
+            setHabits((prev) => prev.map((h) => (h._id === id ? updated : h)));
+        } catch (error) {
+            console.error('Error toggling habit:', error);
+        }
+    };
+
+    const deleteHabit = async (id) => {
+        try {
+            await habitsAPI.delete(id);
+            setHabits((prev) => prev.filter((h) => h._id !== id));
+        } catch (error) {
+            console.error('Error deleting habit:', error);
+        }
     };
 
     const value = {
@@ -419,6 +603,26 @@ export const AppProvider = ({ children }) => {
         addDebt,
         updateDebt,
         deleteDebt,
+        
+        // Note actions
+        addNote,
+        updateNote,
+        deleteNote,
+        
+        // Shared Expense actions
+        addSharedExpense,
+        updateSharedExpense,
+        deleteSharedExpense,
+        
+        // Event actions
+        addEvent,
+        updateEvent,
+        deleteEvent,
+        
+        // Habit actions
+        addHabit,
+        toggleHabitToday,
+        deleteHabit,
         
         // Semester actions
         setSemesterConfig,

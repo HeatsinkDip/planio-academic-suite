@@ -308,7 +308,7 @@ const Debts = () => {
                                                     <motion.button
                                                         whileHover={{ scale: 1.05 }}
                                                         whileTap={{ scale: 0.95 }}
-                                                        onClick={() => setPaymentModal(debt.id)}
+                                                        onClick={() => setPaymentModal(debt._id || debt.id)}
                                                         className="bg-green-100 text-green-600 px-3 py-2 rounded-xl text-sm font-medium"
                                                     >
                                                         Mark Paid

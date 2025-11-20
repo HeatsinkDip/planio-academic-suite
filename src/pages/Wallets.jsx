@@ -47,7 +47,7 @@ const Wallets = () => {
             type: wallet.type,
             balance: wallet.balance,
         });
-        setEditingId(wallet.id);
+        setEditingId(wallet._id || wallet.id);
         setIsAdding(true);
     };
 
@@ -174,10 +174,11 @@ const Wallets = () => {
                     </div>
                 ) : (
                     wallets.map((wallet) => {
-                        const txCount = getWalletTransactions(wallet.id).length;
+                        const walletId = wallet._id || wallet.id;
+                        const txCount = getWalletTransactions(walletId).length;
                         return (
                             <motion.div
-                                key={wallet.id}
+                                key={walletId}
                                 layout
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -201,7 +202,7 @@ const Wallets = () => {
                                         <button
                                             onClick={() => {
                                                 if (confirm(`Delete ${wallet.name}?`)) {
-                                                    deleteWallet(wallet.id);
+                                                    deleteWallet(walletId);
                                                 }
                                             }}
                                             className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
