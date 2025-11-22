@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { User, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import Navbar from './Navbar';
 
 const Layout = ({ children, activeTab, setActiveTab }) => {
     const { currentUser, logout } = useAuth();
+    const { isDarkMode } = useTheme();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
 
     const handleLogout = () => {
@@ -13,9 +15,13 @@ const Layout = ({ children, activeTab, setActiveTab }) => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col">
+        <div className={`min-h-screen flex flex-col ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
             {/* Header */}
-            <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
+            <header className={`border-b sticky top-0 z-40 shadow-sm ${
+                isDarkMode 
+                    ? 'bg-slate-900 border-slate-700' 
+                    : 'bg-white border-gray-100'
+            }`}>
                 <div className="max-w-md mx-auto px-4 h-14 flex items-center justify-between">
                     {/* App Name */}
                     <div className="flex items-center">
@@ -24,8 +30,8 @@ const Layout = ({ children, activeTab, setActiveTab }) => {
                         </h1>
                     </div>
 
-                    {/* Profile */}
-                    <div className="relative">
+                    {/* Profile - Hidden, moved to settings dropdown */}
+                    <div className="relative opacity-0 pointer-events-none">
                         <button
                             onClick={() => setShowProfileMenu(!showProfileMenu)}
                             className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-50 transition-colors"
@@ -83,9 +89,14 @@ const Layout = ({ children, activeTab, setActiveTab }) => {
                 {children}
             </main>
 
-            {/* Footer */}
-            <footer className="bg-white border-t border-gray-100 py-3 text-center">
-                <p className="text-xs text-slate-400">Made with ❤️ for students</p>
+            {/* Footer */            <footer className={`border-t py-3 text-center ${
+                isDarkMode 
+                    ? 'bg-slate-900 border-slate-700' 
+                    : 'bg-white border-gray-100'
+            }`}>
+                <p className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Made by Dip Kundu ❤️ for students
+                </p>
             </footer>
 
             {/* Bottom Navigation */}

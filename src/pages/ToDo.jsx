@@ -2,11 +2,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, History, Search, Filter, CheckCircle, AlertCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
 import TaskItem from '../components/TaskItem';
 import { format, startOfDay, endOfDay, isWithinInterval, parseISO } from 'date-fns';
 
 const ToDo = () => {
-    const { tasks, addTask, toggleTask, deleteTask } = useApp();
+    const { tasks, addTask, updateTask, deleteTask } = useApp();
+    const { isDarkMode } = useTheme();
     const [activeView, setActiveView] = useState('tasks'); // tasks, history
     const [isAdding, setIsAdding] = useState(false);
     const [newTask, setNewTask] = useState({ title: '', priority: 'medium', dueDate: '' });

@@ -34,6 +34,8 @@ export const AppProvider = ({ children }) => {
     const [exams, setExams] = useState([]);
     const [deadlines, setDeadlines] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [archivedSemesters, setArchivedSemesters] = useState([]);
+    const [semesterExpired, setSemesterExpired] = useState(false);
 
     // Placeholder states for features not yet connected to backend
     const [debts, setDebts] = useState([]);
@@ -58,37 +60,76 @@ export const AppProvider = ({ children }) => {
     const loadAllData = async () => {
         setLoading(true);
         try {
-            const [
-                tasksData,
-                transactionsData,
-                walletsData,
-                semesterConfigData,
-                semesterEventsData,
-                timetableData,
-                assignmentsData,
-                examsData,
-                deadlinesData,
-                debtsData,
-                notesData,
-                sharedExpensesData,
-                eventsData,
-                habitsData,
-            ] = await Promise.allSettled([
+            // First, check semester status
+            let activeSemester = null;
+            let isExpired = false;
+            
+            try {
+                const semesterConfig = await semesterAPI.getConfig();
+                if (semesterConfig && semesterConfig.endDate) {
+                    const endDate = new Date(semesterConfig.endDate);
+                    const now = new Date();
+                    if (endDate < now) {
+                        console.log('⚠️ Semester has expired, archiving...');
+                        const expirationCheck = await semesterAPI.checkExpiration();
+                        if (expirationCheck.expired) {
+                            console.log('📦 Semester archived:', expirationCheck.archivedSemester.name);
+                            isExpired = true;
+                            activeSemester = null; // Ensure activeSemester is null when expired
+                            setSemesterConfigState(null);
+                            setSemesterExpired(true);
+                        }
+                    } else {
+                        activeSemester = semesterConfig;
+                        setSemesterExpired(false);
+                    }
+                } else {
+                    // No semester config found
+                    console.log('ℹ️ No active semester found');
+                    setSemesterExpired(false);
+                }
+            } catch (error) {
+                console.error('Error checking semester:', error);
+            }
+            
+            // Load non-semester data and conditionally load semester data
+            const promises = [
                 tasksAPI.getAll(),
                 transactionsAPI.getAll(),
                 walletsAPI.getAll(),
-                semesterAPI.getConfig(),
-                semesterAPI.getEvents(),
-                timetableAPI.getAll(),
-                assignmentsAPI.getAll(),
-                examsAPI.getAll(),
-                deadlinesAPI.getAll(),
+                semesterAPI.getArchivedSemesters(),
                 debtsAPI.getAll(),
                 notesAPI.getAll(),
                 sharedExpensesAPI.getAll(),
                 eventsAPI.getAll(),
                 habitsAPI.getAll(),
-            ]);
+            ];
+            
+            // Only load semester data if there's an active semester
+            if (activeSemester && !isExpired) {
+                promises.push(
+                    semesterAPI.getEvents(),
+                    timetableAPI.getAll(),
+                    assignmentsAPI.getAll(),
+                    examsAPI.getAll(),
+                    deadlinesAPI.getAll()
+                );
+            }
+            
+            const results = await Promise.allSettled(promises);
+            
+            const [
+                tasksData,
+                transactionsData,
+                walletsData,
+                archivedSemestersData,
+                debtsData,
+                notesData,
+                sharedExpensesData,
+                eventsData,
+                habitsData,
+                ...semesterDataResults
+            ] = results;
 
             if (tasksData.status === 'fulfilled') {
                 console.log('✅ Tasks loaded:', tasksData.value.length);
@@ -129,30 +170,71 @@ export const AppProvider = ({ children }) => {
                 console.error('❌ Wallets load failed:', walletsData.reason);
             }
 
-            if (semesterConfigData.status === 'fulfilled') {
-                console.log('✅ Semester config loaded');
-                setSemesterConfigState(semesterConfigData.value);
+            // Set archived semesters
+            if (archivedSemestersData.status === 'fulfilled') {
+                console.log('✅ Archived semesters loaded:', archivedSemestersData.value.length);
+                setArchivedSemesters(archivedSemestersData.value);
+            } else {
+                console.error('❌ Archived semesters load failed:', archivedSemestersData.reason);
             }
-            if (semesterEventsData.status === 'fulfilled') {
-                console.log('✅ Semester events loaded:', semesterEventsData.value.length);
-                setSemester(semesterEventsData.value);
+            
+            // Set active semester state
+            if (activeSemester) {
+                setSemesterConfigState(activeSemester);
+                console.log('✅ Active semester set:', activeSemester.name);
+            } else {
+                setSemesterConfigState(null);
+                console.log('ℹ️ No active semester');
             }
-            if (timetableData.status === 'fulfilled') {
-                console.log('✅ Timetable loaded:', timetableData.value.length);
-                setTimetable(timetableData.value);
+            
+            // Process semester data only if it was loaded (i.e., semester is active)
+            if (activeSemester && !isExpired && semesterDataResults.length >= 5) {
+                const [semesterEventsData, timetableData, assignmentsData, examsData, deadlinesData] = semesterDataResults;
+                
+                if (semesterEventsData.status === 'fulfilled') {
+                    console.log('✅ Semester events loaded:', semesterEventsData.value.length);
+                    setSemester(semesterEventsData.value);
+                } else {
+                    console.error('❌ Semester events load failed:', semesterEventsData.reason);
+                }
+                
+                if (timetableData.status === 'fulfilled') {
+                    console.log('✅ Timetable loaded:', timetableData.value.length);
+                    setTimetable(timetableData.value);
+                } else {
+                    console.error('❌ Timetable load failed:', timetableData.reason);
+                }
+                
+                if (assignmentsData.status === 'fulfilled') {
+                    console.log('✅ Assignments loaded:', assignmentsData.value.length);
+                    setAssignments(assignmentsData.value);
+                } else {
+                    console.error('❌ Assignments load failed:', assignmentsData.reason);
+                }
+                
+                if (examsData.status === 'fulfilled') {
+                    console.log('✅ Exams loaded:', examsData.value.length);
+                    setExams(examsData.value);
+                } else {
+                    console.error('❌ Exams load failed:', examsData.reason);
+                }
+                
+                if (deadlinesData.status === 'fulfilled') {
+                    console.log('✅ Deadlines loaded:', deadlinesData.value.length);
+                    setDeadlines(deadlinesData.value);
+                } else {
+                    console.error('❌ Deadlines load failed:', deadlinesData.reason);
+                }
+            } else {
+                // No active semester or semester expired, clear all semester data
+                console.log('ℹ️ Clearing semester data (expired or no active semester)');
+                setTimetable([]);
+                setAssignments([]);
+                setExams([]);
+                setDeadlines([]);
+                setSemester([]);
             }
-            if (assignmentsData.status === 'fulfilled') {
-                console.log('✅ Assignments loaded:', assignmentsData.value.length);
-                setAssignments(assignmentsData.value);
-            }
-            if (examsData.status === 'fulfilled') {
-                console.log('✅ Exams loaded:', examsData.value.length);
-                setExams(examsData.value);
-            }
-            if (deadlinesData.status === 'fulfilled') {
-                console.log('✅ Deadlines loaded:', deadlinesData.value.length);
-                setDeadlines(deadlinesData.value);
-            }
+            
             if (debtsData.status === 'fulfilled') {
                 console.log('✅ Debts loaded:', debtsData.value.length);
                 setDebts(debtsData.value);
@@ -663,6 +745,8 @@ export const AppProvider = ({ children }) => {
         habits,
         events,
         loading,
+        archivedSemesters,
+        semesterExpired,
         
         // Task actions
         addTask,

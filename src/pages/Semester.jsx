@@ -10,6 +10,7 @@ import {
     isWithinInterval
 } from 'date-fns';
 import { useApp } from '../context/AppContext';
+import { timetableAPI, assignmentsAPI, examsAPI, deadlinesAPI } from '../services/api';
 
 const Semester = () => {
     const {
@@ -17,12 +18,21 @@ const Semester = () => {
         addTimetable, addAssignment, addExam, addDeadline,
         updateAssignment, updateDeadline,
         deleteTimetable, deleteAssignment, deleteExam, deleteDeadline,
-        semesterConfig, setSemesterConfig
+        semesterConfig, setSemesterConfig, archivedSemesters, semesterExpired
     } = useApp();
 
     // Main navigation
     const [mainView, setMainView] = useState('current'); // current, history
     const [activeTab, setActiveTab] = useState('overview');
+    
+    // History viewing state
+    const [selectedArchivedSemester, setSelectedArchivedSemester] = useState(null);
+    const [archivedData, setArchivedData] = useState({
+        timetable: [],
+        assignments: [],
+        exams: [],
+        deadlines: []
+    });
     
     // Modals
     const [showSemesterSetup, setShowSemesterSetup] = useState(false);
@@ -67,6 +77,9 @@ const Semester = () => {
     const [showSuccess, setShowSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
     
+    // Date navigation
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    
     // Initialize semester form when modal opens
     React.useEffect(() => {
         if (showSemesterSetup && semesterConfig) {
@@ -105,11 +118,52 @@ const Semester = () => {
             return () => clearTimeout(timer);
         }
     }, [showSuccess]);
+    
+    // Load archived semester data when selected
+    React.useEffect(() => {
+        const loadArchivedData = async () => {
+            if (selectedArchivedSemester) {
+                try {
+                    const [timetableData, assignmentsData, examsData, deadlinesData] = await Promise.all([
+                        timetableAPI.getAll(selectedArchivedSemester._id),
+                        assignmentsAPI.getAll(selectedArchivedSemester._id),
+                        examsAPI.getAll(selectedArchivedSemester._id),
+                        deadlinesAPI.getAll(selectedArchivedSemester._id)
+                    ]);
+                    
+                    setArchivedData({
+                        timetable: timetableData,
+                        assignments: assignmentsData,
+                        exams: examsData,
+                        deadlines: deadlinesData
+                    });
+                } catch (error) {
+                    console.error('Failed to load archived semester data:', error);
+                }
+            } else {
+                // Clear archived data when no semester is selected
+                setArchivedData({
+                    timetable: [],
+                    assignments: [],
+                    exams: [],
+                    deadlines: []
+                });
+            }
+        };
+        
+        loadArchivedData();
+    }, [selectedArchivedSemester]);
 
     // Get week dates
-    const today = new Date();
+    const today = selectedDate;
     const weekStart = startOfWeek(today);
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+    
+    // Date navigation functions
+    const goToPreviousDay = () => setSelectedDate(prev => addDays(prev, -1));
+    const goToNextDay = () => setSelectedDate(prev => addDays(prev, 1));
+    const goToToday = () => setSelectedDate(new Date());
+    const isToday = isSameDay(selectedDate, new Date());
 
     // Get unique courses from timetable
     const getUniqueCourses = () => {
@@ -511,65 +565,100 @@ const Semester = () => {
             </AnimatePresence>
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-                <div>
-                    <h1 className="text-xl font-bold text-slate-800">Academic Semester</h1>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                        {semesterConfig?.name || 'No active semester'}
-                        {semesterConfig?.startDate && semesterConfig?.endDate && (
-                            <span className="ml-1">
-                                • {format(parseISO(semesterConfig.startDate), 'MMM d')} - {format(parseISO(semesterConfig.endDate), 'MMM d, yyyy')}
-                            </span>
-                        )}
-                    </p>
+            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl p-4 mb-3 border border-indigo-100">
+                <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                        <h1 className="text-base font-bold text-slate-800">Academic Semester</h1>
+                        <p className="text-[11px] text-slate-600 mt-1">
+                            {semesterConfig?.name || 'No active semester'}
+                            {semesterConfig?.startDate && semesterConfig?.endDate && (
+                                <span className="text-slate-500">
+                                    {' '}• {format(parseISO(semesterConfig.startDate), 'MMM d')} - {format(parseISO(semesterConfig.endDate), 'MMM d, yyyy')}
+                                </span>
+                            )}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setMainView('history')}
+                            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all text-[11px] font-semibold ${
+                                mainView === 'history'
+                                    ? 'bg-violet-500 text-white shadow-md'
+                                    : 'bg-white text-slate-600 border border-gray-200 hover:bg-slate-50'
+                            }`}
+                        >
+                            <History size={12} />
+                            History
+                        </button>
+                        <button
+                            onClick={() => setShowSemesterSetup(true)}
+                            className="p-2 rounded-lg bg-white text-slate-600 hover:bg-slate-100 border border-gray-200 transition-colors"
+                        >
+                            <Settings size={16} />
+                        </button>
+                    </div>
                 </div>
-                <button
-                    onClick={() => setShowSemesterSetup(true)}
-                    className="p-2.5 rounded-xl bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors"
-                >
-                    <Settings size={18} />
-                </button>
             </div>
 
-            {/* Main View Toggle */}
-            <div className="grid grid-cols-2 gap-2 mb-4">
-                <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setMainView('current')}
-                    className={`p-3 rounded-xl flex items-center justify-center gap-2 transition-all text-sm font-semibold ${
-                        mainView === 'current'
-                            ? 'bg-indigo-500 text-white shadow-lg'
-                            : 'bg-white text-slate-600 border border-gray-200'
-                    }`}
+            {/* Expired Semester Warning */}
+            {!semesterConfig && semesterExpired && mainView === 'current' && (
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-4"
                 >
-                    <GraduationCap size={16} />
-                    Current Semester
-                </motion.button>
-                <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setMainView('history')}
-                    className={`p-3 rounded-xl flex items-center justify-center gap-2 transition-all text-sm font-semibold ${
-                        mainView === 'history'
-                            ? 'bg-violet-500 text-white shadow-lg'
-                            : 'bg-white text-slate-600 border border-gray-200'
-                    }`}
+                    <div className="flex items-start gap-3">
+                        <AlertCircle className="text-rose-600 mt-0.5 shrink-0" size={20} />
+                        <div className="flex-1">
+                            <p className="text-sm font-bold text-rose-800">Semester Has Ended</p>
+                            <p className="text-xs text-rose-700 mt-1">
+                                Your previous semester has been archived. Please create a new semester to continue adding classes, assignments, and exams.
+                            </p>
+                            <button
+                                onClick={() => setShowSemesterSetup(true)}
+                                className="mt-3 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition-colors"
+                            >
+                                Create New Semester
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* No Semester Warning */}
+            {!semesterConfig && !semesterExpired && mainView === 'current' && (
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 mb-3"
                 >
-                    <History size={16} />
-                    History
-                </motion.button>
-            </div>
+                    <div className="flex items-center gap-2">
+                        <AlertCircle className="text-blue-600 shrink-0" size={16} />
+                        <div className="flex-1">
+                            <p className="text-xs font-bold text-blue-800">No Active Semester</p>
+                            <p className="text-[10px] text-blue-700 mt-0.5">Create your semester to track classes & assignments</p>
+                        </div>
+                        <button
+                            onClick={() => setShowSemesterSetup(true)}
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-semibold transition-colors shrink-0"
+                        >
+                            Create
+                        </button>
+                    </div>
+                </motion.div>
+            )}
 
             {/* CURRENT SEMESTER VIEW */}
             {mainView === 'current' && (
                 <>
                     {/* Week Calendar */}
-                    <motion.div className="mb-4">
+                    <motion.div className="mb-3">
                         <button
                             onClick={() => setShowCalendar(!showCalendar)}
-                            className="w-full flex items-center justify-between p-3 bg-white rounded-xl shadow-sm border border-gray-200 mb-2"
+                            className="w-full flex items-center justify-between p-2.5 bg-white rounded-xl shadow-sm border border-gray-200 mb-2"
                         >
-                            <span className="text-sm font-semibold text-slate-700">This Week</span>
-                            {showCalendar ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            <span className="text-xs font-semibold text-slate-700">This Week</span>
+                            {showCalendar ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                         </button>
 
                         <AnimatePresence>
@@ -611,8 +700,42 @@ const Semester = () => {
                         </AnimatePresence>
                     </motion.div>
 
+                    {/* Date Navigation */}
+                    <div className="bg-white rounded-xl border border-gray-200 p-2.5 mb-3 flex items-center justify-between shadow-sm">
+                        <button
+                            onClick={goToPreviousDay}
+                            className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                            <ChevronDown className="rotate-90" size={16} />
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <div className="text-center">
+                                <div className="text-sm font-bold text-slate-800">
+                                    {format(selectedDate, 'MMM d, yyyy')}
+                                </div>
+                                <div className="text-[10px] text-slate-500">
+                                    {format(selectedDate, 'EEEE')}
+                                </div>
+                            </div>
+                            {!isToday && (
+                                <button
+                                    onClick={goToToday}
+                                    className="ml-2 px-2.5 py-1 bg-indigo-100 text-indigo-600 rounded-lg text-[10px] font-semibold hover:bg-indigo-200 transition-colors"
+                                >
+                                    Today
+                                </button>
+                            )}
+                        </div>
+                        <button
+                            onClick={goToNextDay}
+                            className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                            <ChevronDown className="-rotate-90" size={16} />
+                        </button>
+                    </div>
+
                     {/* Tabs */}
-                    <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
+                    <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 scrollbar-hide">
                         {tabs.map((tab) => {
                             const Icon = tab.icon;
                             const isActive = activeTab === tab.id;
@@ -621,13 +744,13 @@ const Semester = () => {
                                     key={tab.id}
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all whitespace-nowrap text-xs font-semibold ${
+                                    className={`px-3 py-2 rounded-lg flex items-center gap-1.5 transition-all whitespace-nowrap text-[11px] font-semibold ${
                                         isActive
-                                            ? 'bg-indigo-500 text-white shadow-lg'
+                                            ? 'bg-indigo-500 text-white shadow-md'
                                             : 'bg-white text-slate-600 shadow-sm border border-gray-200'
                                     }`}
                                 >
-                                    <Icon size={14} />
+                                    <Icon size={13} />
                                     {tab.label}
                                 </motion.button>
                             );
@@ -651,7 +774,7 @@ const Semester = () => {
                                         <div className="flex items-center justify-between mb-3">
                                             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                                                 <BookOpen size={16} className="text-blue-500" />
-                                                Today's Classes
+                                                {isToday ? "Today's Classes" : `Classes on ${format(selectedDate, 'MMM d')}`}
                                             </h3>
                                             <button
                                                 onClick={() => setActiveTab('classes')}
@@ -662,17 +785,29 @@ const Semester = () => {
                                         </div>
                                 <div className="space-y-2">
                                     {timetable.filter(c => c.day === format(today, 'EEEE')).length === 0 ? (
-                                        <p className="text-xs text-slate-400 text-center py-4">Hurray! No classes today</p>
+                                        <p className="text-xs text-slate-400 text-center py-4">{isToday ? 'Hurray! No classes today' : 'No classes scheduled'}</p>
                                     ) : (
-                                        timetable.filter(c => c.day === format(today, 'EEEE')).slice(0, 3).map((classItem) => (
-                                            <div key={classItem.id} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
-                                                <div
-                                                    className="w-2 h-2 rounded-full shrink-0"
-                                                    style={{ backgroundColor: classItem.color }}
-                                                />
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-semibold text-slate-800 truncate">{classItem.subject}</p>
-                                                    <p className="text-[10px] text-slate-500">{classItem.startTime} - {classItem.endTime}</p>
+                                        timetable
+                                            .filter(c => c.day === format(today, 'EEEE'))
+                                            .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                                            .map((classItem) => (
+                                            <div key={classItem._id || classItem.id} className="p-3 bg-slate-50 rounded-lg border-l-4" style={{ borderLeftColor: classItem.color }}>
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-bold text-slate-800 truncate">{classItem.code} - {classItem.name}</p>
+                                                        <div className="flex items-center gap-2 mt-1 text-xs text-slate-600">
+                                                            <span className="font-semibold">{classItem.startTime} - {classItem.endTime}</span>
+                                                            {classItem.section && <span>• Sec {classItem.section}</span>}
+                                                        </div>
+                                                        {classItem.room && (
+                                                            <p className="text-xs text-slate-500 mt-1">📍 {classItem.room}</p>
+                                                        )}
+                                                        {classItem.type && (
+                                                            <span className="inline-block mt-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-semibold">
+                                                                {classItem.type}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))
@@ -892,7 +1027,10 @@ const Semester = () => {
                                                         </div>
                                                     </div>
                                                     <button
-                                                        onClick={() => deleteAssignment(assignment._id || assignment.id)}
+                                                        onClick={() => {
+                                                            setItemToDelete({ id: assignment._id || assignment.id, type: 'assignment', name: assignment.title });
+                                                            setShowDeleteConfirm(true);
+                                                        }}
                                                         className="text-rose-500 p-1.5 hover:bg-rose-50 rounded shrink-0"
                                                     >
                                                         <Trash2 size={14} />
@@ -957,7 +1095,10 @@ const Semester = () => {
                                                                     {daysLeft < 0 ? 'Past' : `${daysLeft}d`}
                                                                 </div>
                                                                 <button
-                                                                    onClick={() => deleteExam(exam._id || exam.id)}
+                                                                    onClick={() => {
+                                                                        setItemToDelete({ id: exam._id || exam.id, type: 'exam', name: exam.title });
+                                                                        setShowDeleteConfirm(true);
+                                                                    }}
                                                                     className="text-rose-500 p-1.5 hover:bg-rose-50 rounded"
                                                                 >
                                                                     <Trash2 size={14} />
@@ -1060,11 +1201,307 @@ const Semester = () => {
             {/* HISTORY VIEW */}
             {mainView === 'history' && (
                 <div className="space-y-4">
-                    <div className="text-center py-12 text-slate-400">
-                        <History size={48} className="mx-auto mb-3 opacity-50" />
-                        <p className="text-sm font-semibold mb-2">Semester History</p>
-                        <p className="text-xs">Past semester data will appear here</p>
-                    </div>
+                    {archivedSemesters.length === 0 ? (
+                        <div className="text-center py-12 text-slate-400">
+                            <History size={48} className="mx-auto mb-3 opacity-50" />
+                            <p className="text-sm font-semibold mb-2">No Archived Semesters</p>
+                            <p className="text-xs">Completed semesters will appear here</p>
+                            <button
+                                onClick={() => setMainView('current')}
+                                className="mt-4 px-4 py-2 bg-violet-500 text-white rounded-lg text-sm font-semibold hover:bg-violet-600 transition-colors"
+                            >
+                                Back to Current Semester
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="bg-white rounded-xl p-4 border border-gray-200">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-sm font-bold text-slate-800">Archived Semesters</h3>
+                                    <button
+                                        onClick={() => setMainView('current')}
+                                        className="px-3 py-1.5 bg-violet-500 text-white rounded-lg text-xs font-semibold hover:bg-violet-600 transition-colors"
+                                    >
+                                        ← Back to Current
+                                    </button>
+                                </div>
+                                <div className="space-y-2">
+                                    {archivedSemesters.map((sem) => (
+                                        <button
+                                            key={sem._id}
+                                            onClick={() => setSelectedArchivedSemester(sem)}
+                                            className={`w-full p-3 rounded-lg text-left transition-all border ${
+                                                selectedArchivedSemester?._id === sem._id
+                                                    ? 'bg-indigo-50 border-indigo-300'
+                                                    : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-slate-800">{sem.name}</p>
+                                                    <p className="text-xs text-slate-500 mt-1">
+                                                        {format(parseISO(sem.startDate), 'MMM d, yyyy')} - {format(parseISO(sem.endDate), 'MMM d, yyyy')}
+                                                    </p>
+                                                </div>
+                                                <div className="text-xs bg-slate-200 text-slate-600 px-2 py-1 rounded font-semibold">
+                                                    Archived
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {selectedArchivedSemester && (
+                                <>
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                                        <div className="flex items-start gap-3">
+                                            <AlertCircle className="text-amber-600 mt-0.5 flex-shrink-0" size={20} />
+                                            <div className="flex-1">
+                                                <p className="text-sm font-semibold text-amber-800">Viewing Archived Semester</p>
+                                                <p className="text-xs text-amber-700 mt-1">
+                                                    You're viewing data from <span className="font-semibold">{selectedArchivedSemester.name}</span>. 
+                                                    This data is read-only. To make changes, please create a new semester.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Archived Semester Overview */}
+                                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                        <div className="grid grid-cols-4 gap-2">
+                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 text-center">
+                                                <p className="text-xl font-bold text-blue-700">{archivedData.timetable.length}</p>
+                                                <p className="text-[10px] text-blue-600 font-semibold">Classes</p>
+                                            </div>
+                                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-2 text-center">
+                                                <p className="text-xl font-bold text-purple-700">{archivedData.assignments.length}</p>
+                                                <p className="text-[10px] text-purple-600 font-semibold">Assignments</p>
+                                            </div>
+                                            <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-center">
+                                                <p className="text-xl font-bold text-green-700">{archivedData.exams.length}</p>
+                                                <p className="text-[10px] text-green-600 font-semibold">Exams</p>
+                                            </div>
+                                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 text-center">
+                                                <p className="text-xl font-bold text-orange-700">{archivedData.deadlines.length}</p>
+                                                <p className="text-[10px] text-orange-600 font-semibold">Deadlines</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Timetable */}
+                                    {archivedData.timetable.length > 0 && (
+                                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                            <h3 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                                                <Calendar size={14} className="text-blue-500" />
+                                                Classes ({archivedData.timetable.length})
+                                            </h3>
+                                            <div className="space-y-1.5">
+                                                {archivedData.timetable.map((classItem) => (
+                                                    <div 
+                                                        key={classItem._id} 
+                                                        className="bg-slate-50 border-l-2 border border-slate-200 rounded p-2"
+                                                        style={{ borderLeftColor: classItem.color || '#6366f1' }}
+                                                    >
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                <p className="text-xs font-bold text-slate-800 truncate">
+                                                                    {classItem.code || classItem.subject}
+                                                                </p>
+                                                                {classItem.section && (
+                                                                    <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-semibold rounded shrink-0">
+                                                                        {classItem.section}
+                                                                    </span>
+                                                                )}
+                                                                {classItem.type && (
+                                                                    <span className="px-1.5 py-0.5 bg-slate-200 text-slate-700 text-[10px] font-semibold rounded shrink-0">
+                                                                        {classItem.type}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-[11px] text-slate-600 mt-1 truncate">
+                                                            {classItem.name || classItem.subject}
+                                                        </p>
+                                                        <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
+                                                            <span className="font-semibold">{classItem.day}</span>
+                                                            <span>•</span>
+                                                            <span>{classItem.startTime}-{classItem.endTime}</span>
+                                                            {classItem.location && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span>{classItem.location}</span>
+                                                                </>
+                                                            )}
+                                                            {(classItem.instructor || classItem.faculty) && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span className="truncate">{classItem.instructor || classItem.faculty}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Assignments */}
+                                    {archivedData.assignments.length > 0 && (
+                                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                            <h3 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                                                <FileText size={14} className="text-purple-500" />
+                                                Assignments ({archivedData.assignments.length})
+                                            </h3>
+                                            <div className="space-y-1.5">
+                                                {archivedData.assignments.map((assignment) => (
+                                                    <div key={assignment._id} className="bg-purple-50 border-l-2 border-purple-400 rounded p-2">
+                                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                                            <p className="text-xs font-bold text-slate-800 truncate flex-1">{assignment.title}</p>
+                                                            {assignment.status && (
+                                                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${
+                                                                    assignment.status === 'completed' ? 'bg-green-500 text-white' :
+                                                                    assignment.status === 'in-progress' ? 'bg-blue-500 text-white' :
+                                                                    'bg-gray-400 text-white'
+                                                                }`}>
+                                                                    {assignment.status === 'completed' ? '✓' :
+                                                                     assignment.status === 'in-progress' ? '⟳' :
+                                                                     assignment.status}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {assignment.course && (
+                                                            <p className="text-[10px] text-purple-700 font-medium mb-1">{assignment.course}</p>
+                                                        )}
+                                                        <div className="flex items-center gap-2 text-[10px] text-slate-600">
+                                                            <span className="font-semibold">{format(parseISO(assignment.dueDate), 'MMM d')}</span>
+                                                            {assignment.marks && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span>{assignment.marks}pts</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Exams */}
+                                    {archivedData.exams.length > 0 && (
+                                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                            <h3 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                                                <Award size={14} className="text-green-500" />
+                                                Exams ({archivedData.exams.length})
+                                            </h3>
+                                            <div className="space-y-1.5">
+                                                {archivedData.exams.map((exam) => (
+                                                    <div key={exam._id} className="bg-green-50 border-l-2 border-green-500 rounded p-2">
+                                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                                            <p className="text-xs font-bold text-slate-800 truncate flex-1">{exam.course}</p>
+                                                            {exam.type && (
+                                                                <span className="px-1.5 py-0.5 bg-green-600 text-white text-[10px] font-semibold rounded shrink-0">
+                                                                    {exam.type}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {exam.topic && (
+                                                            <p className="text-[10px] text-slate-600 mb-1 truncate">{exam.topic}</p>
+                                                        )}
+                                                        <div className="flex items-center gap-2 text-[10px] text-slate-600">
+                                                            <span className="font-semibold">{format(parseISO(exam.date), 'MMM d, yyyy')}</span>
+                                                            {exam.time && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span>{exam.time}</span>
+                                                                </>
+                                                            )}
+                                                            {exam.room && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span>{exam.room}</span>
+                                                                </>
+                                                            )}
+                                                            {exam.duration && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span>{exam.duration}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Deadlines */}
+                                    {archivedData.deadlines.length > 0 && (
+                                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                            <h3 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                                                <Clock size={14} className="text-orange-500" />
+                                                Deadlines ({archivedData.deadlines.length})
+                                            </h3>
+                                            <div className="space-y-1.5">
+                                                {archivedData.deadlines.map((deadline) => (
+                                                    <div key={deadline._id} className="bg-orange-50 border-l-2 border-orange-400 rounded p-2">
+                                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                                            <p className="text-xs font-bold text-slate-800 truncate flex-1">{deadline.title}</p>
+                                                            <div className="flex items-center gap-1 shrink-0">
+                                                                {deadline.status && (
+                                                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                                                                        deadline.status === 'completed' ? 'bg-green-500 text-white' :
+                                                                        deadline.status === 'in-progress' ? 'bg-blue-500 text-white' :
+                                                                        'bg-gray-400 text-white'
+                                                                    }`}>
+                                                                        {deadline.status === 'completed' ? '✓' :
+                                                                         deadline.status === 'in-progress' ? '⟳' :
+                                                                         deadline.status}
+                                                                    </span>
+                                                                )}
+                                                                {deadline.priority && (
+                                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                                                        deadline.priority === 'high' ? 'bg-red-500 text-white' :
+                                                                        deadline.priority === 'medium' ? 'bg-yellow-500 text-white' :
+                                                                        'bg-green-500 text-white'
+                                                                    }`}>
+                                                                        {deadline.priority === 'high' ? '!' :
+                                                                         deadline.priority === 'medium' ? '!!' :
+                                                                         '!!!'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        {deadline.course && (
+                                                            <p className="text-[10px] text-orange-700 font-medium mb-1">{deadline.course}</p>
+                                                        )}
+                                                        <div className="flex items-center gap-2 text-[10px] text-slate-600">
+                                                            <span className="font-semibold">{format(parseISO(deadline.dueDate), 'MMM d')}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Empty state */}
+                                    {archivedData.timetable.length === 0 && 
+                                     archivedData.assignments.length === 0 && 
+                                     archivedData.exams.length === 0 && 
+                                     archivedData.deadlines.length === 0 && (
+                                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
+                                            <BookOpen size={48} className="mx-auto mb-3 text-slate-300" />
+                                            <p className="text-sm font-semibold text-slate-600">No Data Found</p>
+                                            <p className="text-xs text-slate-400 mt-1">
+                                                This archived semester doesn't have any recorded data.
+                                            </p>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </>
+                    )}
                 </div>
             )}
 
@@ -1083,7 +1520,7 @@ const Semester = () => {
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: '100%', opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-t-3xl md:rounded-2xl p-4 md:p-6 w-full md:max-w-3xl md:mx-auto max-h-[90vh] overflow-y-auto"
+                            className="bg-white rounded-t-3xl md:rounded-2xl p-4 md:p-6 pb-24 md:pb-6 w-full md:max-w-3xl md:mx-auto max-h-[75vh] overflow-y-auto"
                         >
                             <div className="flex justify-between items-center mb-5">
                                 <div>
@@ -1234,7 +1671,7 @@ const Semester = () => {
                             exit={{ y: '100%', opacity: 0 }}
                             transition={{ type: "spring", damping: 25, stiffness: 300 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-t-3xl md:rounded-2xl p-4 md:p-6 w-full md:max-w-2xl md:mx-auto max-h-[85vh] overflow-y-auto shadow-2xl"
+                            className="bg-white rounded-t-3xl md:rounded-2xl p-4 md:p-6 pb-24 md:pb-6 w-full md:max-w-2xl md:mx-auto max-h-[75vh] overflow-y-auto shadow-2xl"
                         >
                             <div className="flex justify-between items-center mb-5">
                                 <div>
@@ -1429,7 +1866,7 @@ const Semester = () => {
                             animate={{ y: 0 }}
                             exit={{ y: '100%' }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-t-3xl md:rounded-2xl p-5 w-full md:max-w-md md:mx-auto max-h-[80vh] overflow-y-auto"
+                            className="bg-white rounded-t-3xl md:rounded-2xl p-5 pb-24 md:pb-5 w-full md:max-w-md md:mx-auto max-h-[70vh] overflow-y-auto"
                         >
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-lg font-bold text-slate-800">Add Assignment</h2>
@@ -1520,7 +1957,7 @@ const Semester = () => {
                             animate={{ y: 0 }}
                             exit={{ y: '100%' }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-t-3xl md:rounded-2xl p-5 w-full md:max-w-md md:mx-auto max-h-[80vh] overflow-y-auto"
+                            className="bg-white rounded-t-3xl md:rounded-2xl p-5 pb-24 md:pb-5 w-full md:max-w-md md:mx-auto max-h-[70vh] overflow-y-auto"
                         >
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-lg font-bold text-slate-800">Add Exam</h2>
@@ -1610,7 +2047,7 @@ const Semester = () => {
                             animate={{ y: 0 }}
                             exit={{ y: '100%' }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-t-3xl md:rounded-2xl p-5 w-full md:max-w-md md:mx-auto max-h-[80vh] overflow-y-auto"
+                            className="bg-white rounded-t-3xl md:rounded-2xl p-5 pb-24 md:pb-5 w-full md:max-w-md md:mx-auto max-h-[70vh] overflow-y-auto"
                         >
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-lg font-bold text-slate-800">Add Deadline</h2>
@@ -1703,7 +2140,7 @@ const Semester = () => {
                             animate={{ y: 0 }}
                             exit={{ y: '100%' }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-t-3xl md:rounded-2xl p-5 w-full md:max-w-2xl md:mx-auto max-h-[85vh] overflow-y-auto"
+                            className="bg-white rounded-t-3xl md:rounded-2xl p-5 pb-24 md:pb-5 w-full md:max-w-2xl md:mx-auto max-h-[75vh] overflow-y-auto"
                         >
                             <div className="flex justify-between items-center mb-4">
                                 <div>
@@ -1786,7 +2223,7 @@ const Semester = () => {
                             animate={{ y: 0 }}
                             exit={{ y: '100%' }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-t-3xl md:rounded-2xl p-5 w-full md:max-w-2xl md:mx-auto max-h-[85vh] overflow-y-auto"
+                            className="bg-white rounded-t-3xl md:rounded-2xl p-5 pb-24 md:pb-5 w-full md:max-w-2xl md:mx-auto max-h-[75vh] overflow-y-auto"
                         >
                             <div className="flex justify-between items-center mb-4">
                                 <div>
@@ -1859,7 +2296,12 @@ const Semester = () => {
                                     <AlertCircle className="text-rose-600" size={24} />
                                 </div>
                                 <div className="flex-1">
-                                    <h2 className="text-xl font-bold text-slate-800 mb-2">Delete {itemToDelete.type === 'class' ? 'Class' : 'Item'}?</h2>
+                                    <h2 className="text-xl font-bold text-slate-800 mb-2">
+                                        Delete {itemToDelete.type === 'class' ? 'Class' : 
+                                               itemToDelete.type === 'assignment' ? 'Assignment' : 
+                                               itemToDelete.type === 'exam' ? 'Exam' : 
+                                               itemToDelete.type === 'deadline' ? 'Deadline' : 'Item'}?
+                                    </h2>
                                     <p className="text-sm text-slate-600">
                                         Are you sure you want to delete <span className="font-semibold text-slate-800">"{itemToDelete.name}"</span>? This action cannot be undone.
                                     </p>
@@ -1881,9 +2323,17 @@ const Semester = () => {
                                         try {
                                             if (itemToDelete.type === 'class') {
                                                 await deleteTimetable(itemToDelete.id);
+                                            } else if (itemToDelete.type === 'assignment') {
+                                                await deleteAssignment(itemToDelete.id);
+                                            } else if (itemToDelete.type === 'exam') {
+                                                await deleteExam(itemToDelete.id);
+                                            } else if (itemToDelete.type === 'deadline') {
+                                                await deleteDeadline(itemToDelete.id);
                                             }
                                             setShowDeleteConfirm(false);
                                             setItemToDelete(null);
+                                            setSuccessMessage(`${itemToDelete.type.charAt(0).toUpperCase() + itemToDelete.type.slice(1)} deleted successfully!`);
+                                            setShowSuccess(true);
                                         } catch (error) {
                                             console.error('Error deleting item:', error);
                                             alert('Failed to delete. Please try again.');

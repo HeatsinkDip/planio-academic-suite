@@ -18,6 +18,7 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 function AppContent() {
     const { isAuthenticated, loading } = useAuth();
@@ -84,11 +85,13 @@ function AppContent() {
 
 function App() {
     return (
-        <AuthProvider>
-            <AppProvider>
-                <AppContent />
-            </AppProvider>
-        </AuthProvider>
+        <ThemeProvider>
+            <AuthProvider>
+                <AppProvider>
+                    <AppContent />
+                </AppProvider>
+            </AuthProvider>
+        </ThemeProvider>
     );
 }
 

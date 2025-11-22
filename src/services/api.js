@@ -159,12 +159,28 @@ export const semesterAPI = {
         const response = await api.delete(`/semester/events/${id}`);
         return response.data;
     },
+    
+    checkExpiration: async () => {
+        const response = await api.post('/semester/check-expiration');
+        return response.data;
+    },
+    
+    getArchivedSemesters: async () => {
+        const response = await api.get('/semester/archived');
+        return response.data;
+    },
+    
+    getSemesterById: async (id) => {
+        const response = await api.get(`/semester/${id}`);
+        return response.data;
+    },
 };
 
 // Timetable API
 export const timetableAPI = {
-    getAll: async () => {
-        const response = await api.get('/timetable');
+    getAll: async (semesterId = null) => {
+        const url = semesterId ? `/timetable?semesterId=${semesterId}` : '/timetable';
+        const response = await api.get(url);
         return response.data;
     },
     
@@ -186,8 +202,9 @@ export const timetableAPI = {
 
 // Assignments API
 export const assignmentsAPI = {
-    getAll: async () => {
-        const response = await api.get('/assignments');
+    getAll: async (semesterId = null) => {
+        const url = semesterId ? `/assignments?semesterId=${semesterId}` : '/assignments';
+        const response = await api.get(url);
         return response.data;
     },
     
@@ -209,8 +226,9 @@ export const assignmentsAPI = {
 
 // Exams API
 export const examsAPI = {
-    getAll: async () => {
-        const response = await api.get('/exams');
+    getAll: async (semesterId = null) => {
+        const url = semesterId ? `/exams?semesterId=${semesterId}` : '/exams';
+        const response = await api.get(url);
         return response.data;
     },
     
@@ -232,8 +250,9 @@ export const examsAPI = {
 
 // Deadlines API
 export const deadlinesAPI = {
-    getAll: async () => {
-        const response = await api.get('/deadlines');
+    getAll: async (semesterId = null) => {
+        const url = semesterId ? `/deadlines?semesterId=${semesterId}` : '/deadlines';
+        const response = await api.get(url);
         return response.data;
     },
     

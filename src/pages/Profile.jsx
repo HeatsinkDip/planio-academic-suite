@@ -3,10 +3,12 @@ import { motion } from 'framer-motion';
 import { User, Mail, LogOut, Edit2, Save, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
 
 const Profile = () => {
     const { currentUser, updateProfile, logout } = useAuth();
     const { tasks, transactions, debts } = useApp();
+    const { isDarkMode } = useTheme();
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState({
         name: currentUser?.name || '',
@@ -37,7 +39,7 @@ const Profile = () => {
             exit={{ opacity: 0, y: -20 }}
             className="p-6 pt-12 pb-24"
         >
-            <h1 className="text-3xl font-bold text-slate-800 mb-6">Profile</h1>
+            <h1 className={`text-3xl font-bold mb-6 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Profile</h1>
 
             {/* Profile Card */}
             <motion.div
@@ -105,37 +107,37 @@ const Profile = () => {
 
             {/* Statistics */}
             <div className="mb-6">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">Your Statistics</h3>
+                <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Your Statistics</h3>
                 <div className="grid grid-cols-2 gap-4">
                     <motion.div
                         whileHover={{ scale: 1.05 }}
-                        className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"
+                        className={`p-5 rounded-2xl shadow-sm ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'} border`}
                     >
                         <div className="text-2xl font-bold text-indigo-600">{tasks.length}</div>
-                        <div className="text-xs text-slate-500 mt-1">Total Tasks</div>
-                        <div className="text-xs text-slate-400 mt-1">{completedTasks} completed</div>
+                        <div className={`text-xs mt-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-500'}`}>Total Tasks</div>
+                        <div className={`text-xs mt-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-400'}`}>{completedTasks} completed</div>
                     </motion.div>
                     <motion.div
                         whileHover={{ scale: 1.05 }}
-                        className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"
+                        className={`p-5 rounded-2xl shadow-sm ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'} border`}
                     >
                         <div className="text-2xl font-bold text-purple-600">{transactions.length}</div>
-                        <div className="text-xs text-slate-500 mt-1">Transactions</div>
-                        <div className="text-xs text-slate-400 mt-1">${Math.abs(totalIncome - totalExpense).toFixed(0)}</div>
+                        <div className={`text-xs mt-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-500'}`}>Transactions</div>
+                        <div className={`text-xs mt-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-400'}`}>${Math.abs(totalIncome - totalExpense).toFixed(0)}</div>
                     </motion.div>
                     <motion.div
                         whileHover={{ scale: 1.05 }}
-                        className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"
+                        className={`p-5 rounded-2xl shadow-sm ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'} border`}
                     >
                         <div className="text-2xl font-bold text-green-600">${totalIncome.toFixed(0)}</div>
-                        <div className="text-xs text-slate-500 mt-1">Total Income</div>
+                        <div className={`text-xs mt-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-500'}`}>Total Income</div>
                     </motion.div>
                     <motion.div
                         whileHover={{ scale: 1.05 }}
-                        className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"
+                        className={`p-5 rounded-2xl shadow-sm ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'} border`}
                     >
                         <div className="text-2xl font-bold text-red-600">${totalExpense.toFixed(0)}</div>
-                        <div className="text-xs text-slate-500 mt-1">Total Expenses</div>
+                        <div className={`text-xs mt-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-500'}`}>Total Expenses</div>
                     </motion.div>
                 </div>
             </div>
@@ -143,25 +145,25 @@ const Profile = () => {
             {/* Debt Summary */}
             {debts.length > 0 && (
                 <div className="mb-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4">Debt Summary</h3>
+                    <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Debt Summary</h3>
                     <div className="grid grid-cols-2 gap-4">
                         <motion.div
                             whileHover={{ scale: 1.05 }}
-                            className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"
+                            className={`p-5 rounded-2xl shadow-sm ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'} border`}
                         >
                             <div className="text-2xl font-bold text-green-600">
                                 {debts.filter(d => d.type === 'lent').length}
                             </div>
-                            <div className="text-xs text-slate-500 mt-1">Money Lent</div>
+                            <div className={`text-xs mt-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-500'}`}>Money Lent</div>
                         </motion.div>
                         <motion.div
                             whileHover={{ scale: 1.05 }}
-                            className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"
+                            className={`p-5 rounded-2xl shadow-sm ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'} border`}
                         >
                             <div className="text-2xl font-bold text-red-600">
                                 {debts.filter(d => d.type === 'borrowed').length}
                             </div>
-                            <div className="text-xs text-slate-500 mt-1">Money Borrowed</div>
+                            <div className={`text-xs mt-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-500'}`}>Money Borrowed</div>
                         </motion.div>
                     </div>
                 </div>

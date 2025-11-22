@@ -5,14 +5,32 @@ import { Assignment } from '../models/index.js';
 const router = express.Router();
 
 // @route   GET /api/assignments
-// @desc    Get all assignments for user (optionally filtered by semester)
+// @desc    Get all assignments for user
 // @access  Private
 router.get('/', protect, async (req, res) => {
     try {
         const query = { userId: req.user._id };
+        
+        // If semesterId is provided, use it; otherwise get active semester's data
         if (req.query.semesterId) {
             query.semesterId = req.query.semesterId;
+        } else {
+            // Only return assignments for active (non-archived) semester
+            const { SemesterConfig } = await import('../models/index.js');
+            const activeSemester = await SemesterConfig.findOne({
+                userId: req.user._id,
+                isActive: true,
+                isArchived: false
+            });
+            
+            if (!activeSemester) {
+                // No active semester, return empty array
+                return res.json([]);
+            }
+            
+            query.semesterId = activeSemester._id;
         }
+        
         const assignments = await Assignment.find(query).sort({ dueDate: 1 });
         res.json(assignments);
     } catch (error) {

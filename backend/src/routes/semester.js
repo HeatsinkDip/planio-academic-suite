@@ -4,6 +4,20 @@ import { SemesterConfig, SemesterEvent } from '../models/index.js';
 
 const router = express.Router();
 
+// Drop incorrect unique index if it exists (run once)
+(async () => {
+    try {
+        const indexes = await SemesterConfig.collection.getIndexes();
+        if (indexes.userId_1) {
+            await SemesterConfig.collection.dropIndex('userId_1');
+            console.log('✅ Dropped old userId_1 unique index from SemesterConfig');
+        }
+    } catch (error) {
+        // Index doesn't exist or already dropped, ignore
+        console.log('ℹ️ No userId_1 index to drop');
+    }
+})();
+
 // @route   GET /api/semester/config
 // @desc    Get active semester config for user
 // @access  Private
@@ -21,12 +35,58 @@ router.get('/config', protect, async (req, res) => {
 });
 
 // @route   GET /api/semester/all
-// @desc    Get all semesters for user
+// @desc    Get all semesters for user (non-archived)
 // @access  Private
 router.get('/all', protect, async (req, res) => {
     try {
-        const semesters = await SemesterConfig.find({ userId: req.user._id }).sort({ createdAt: -1 });
+        const semesters = await SemesterConfig.find({ userId: req.user._id, isArchived: false }).sort({ createdAt: -1 });
         res.json(semesters);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @route   GET /api/semester/archived
+// @desc    Get all archived semesters for user
+// @access  Private
+router.get('/archived', protect, async (req, res) => {
+    try {
+        const semesters = await SemesterConfig.find({ userId: req.user._id, isArchived: true }).sort({ endDate: -1 });
+        res.json(semesters);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @route   POST /api/semester/check-expiration
+// @desc    Check and auto-archive expired semesters
+// @access  Private
+router.post('/check-expiration', protect, async (req, res) => {
+    try {
+        const now = new Date();
+        
+        // Find active semester that has expired
+        const expiredSemester = await SemesterConfig.findOne({
+            userId: req.user._id,
+            isActive: true,
+            isArchived: false,
+            endDate: { $lt: now }
+        });
+
+        if (expiredSemester) {
+            // Archive the expired semester
+            expiredSemester.isActive = false;
+            expiredSemester.isArchived = true;
+            await expiredSemester.save();
+
+            return res.json({ 
+                expired: true, 
+                archivedSemester: expiredSemester,
+                message: 'Semester has been archived due to expiration'
+            });
+        }
+
+        res.json({ expired: false });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -37,20 +97,36 @@ router.get('/all', protect, async (req, res) => {
 // @access  Private
 router.post('/config', protect, async (req, res) => {
     try {
-        // Deactivate all other semesters if this one is active
-        if (req.body.isActive) {
-            await SemesterConfig.updateMany(
-                { userId: req.user._id, isActive: true },
-                { isActive: false }
-            );
-        }
+        // Deactivate all other active semesters
+        await SemesterConfig.updateMany(
+            { userId: req.user._id, isActive: true },
+            { isActive: false }
+        );
         
+        // Create new semester with isActive: true
         const config = await SemesterConfig.create({
             ...req.body,
             userId: req.user._id,
-            isActive: true
+            isActive: true,
+            isArchived: false
         });
         res.status(201).json(config);
+    } catch (error) {
+        console.error('Error creating semester:', error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @route   GET /api/semester/:id
+// @desc    Get specific semester by ID (for history viewing)
+// @access  Private
+router.get('/:id', protect, async (req, res) => {
+    try {
+        const semester = await SemesterConfig.findOne({ _id: req.params.id, userId: req.user._id });
+        if (!semester) {
+            return res.status(404).json({ message: 'Semester not found' });
+        }
+        res.json(semester);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

@@ -10,9 +10,27 @@ const router = express.Router();
 router.get('/', protect, async (req, res) => {
     try {
         const query = { userId: req.user._id };
+        
+        // If semesterId is provided, use it; otherwise get active semester's data
         if (req.query.semesterId) {
             query.semesterId = req.query.semesterId;
+        } else {
+            // Only return exams for active (non-archived) semester
+            const { SemesterConfig } = await import('../models/index.js');
+            const activeSemester = await SemesterConfig.findOne({
+                userId: req.user._id,
+                isActive: true,
+                isArchived: false
+            });
+            
+            if (!activeSemester) {
+                // No active semester, return empty array
+                return res.json([]);
+            }
+            
+            query.semesterId = activeSemester._id;
         }
+        
         const exams = await Exam.find(query).sort({ date: 1 });
         res.json(exams);
     } catch (error) {
