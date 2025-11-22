@@ -5,11 +5,15 @@ import { Exam } from '../models/index.js';
 const router = express.Router();
 
 // @route   GET /api/exams
-// @desc    Get all exams for user
+// @desc    Get all exams for user (optionally filtered by semester)
 // @access  Private
 router.get('/', protect, async (req, res) => {
     try {
-        const exams = await Exam.find({ userId: req.user._id }).sort({ date: 1 });
+        const query = { userId: req.user._id };
+        if (req.query.semesterId) {
+            query.semesterId = req.query.semesterId;
+        }
+        const exams = await Exam.find(query).sort({ date: 1 });
         res.json(exams);
     } catch (error) {
         res.status(500).json({ message: error.message });

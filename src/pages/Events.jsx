@@ -106,7 +106,7 @@ export default function Events() {
           <div className="flex items-center gap-3">
             <Calendar className="w-8 h-8" />
             <div>
-              <h1 className="text-2xl font-bold">College Events</h1>
+              <h1 className="text-2xl font-bold">Events</h1>
               <p className="text-sm text-indigo-100">Stay updated with campus activities</p>
             </div>
           </div>
@@ -416,7 +416,7 @@ export default function Events() {
           <div className="text-center py-12">
             <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">No events yet</p>
-            <p className="text-gray-400 text-sm">Add your college events and stay organized!</p>
+            <p className="text-gray-400 text-sm">Add your s and stay organized!</p>
           </div>
         )}
       </div>

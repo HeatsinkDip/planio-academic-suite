@@ -248,7 +248,7 @@ const Dashboard = () => {
                                     return (
                                         <div key={habit.id} className="flex items-center justify-between text-[10px]">
                                             <span className="text-slate-700 truncate flex-1">{habit.name}</span>
-                                            <div className="flex items-center gap-1">
+                                            <div key={`${habit.id}-actions`} className="flex items-center gap-1">
                                                 <span className="text-orange-500 font-bold">{habit.streak}🔥</span>
                                                 {isCompletedToday && <span className="text-green-500">✓</span>}
                                             </div>

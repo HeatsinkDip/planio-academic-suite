@@ -132,8 +132,16 @@ export const semesterAPI = {
         return response.data;
     },
     
+    createConfig: async (configData) => {
+        const response = await api.post('/semester/config', configData);
+        return response.data;
+    },
+    
     updateConfig: async (configData) => {
-        const response = await api.put('/semester/config', configData);
+        if (!configData._id) {
+            throw new Error('Config ID is required for update');
+        }
+        const response = await api.put(`/semester/config/${configData._id}`, configData);
         return response.data;
     },
     
@@ -218,6 +226,29 @@ export const examsAPI = {
     
     delete: async (id) => {
         const response = await api.delete(`/exams/${id}`);
+        return response.data;
+    },
+};
+
+// Deadlines API
+export const deadlinesAPI = {
+    getAll: async () => {
+        const response = await api.get('/deadlines');
+        return response.data;
+    },
+    
+    create: async (deadlineData) => {
+        const response = await api.post('/deadlines', deadlineData);
+        return response.data;
+    },
+    
+    update: async (id, deadlineData) => {
+        const response = await api.put(`/deadlines/${id}`, deadlineData);
+        return response.data;
+    },
+    
+    delete: async (id) => {
+        const response = await api.delete(`/deadlines/${id}`);
         return response.data;
     },
 };

@@ -18,7 +18,7 @@ const Navbar = ({ activeTab, setActiveTab }) => {
         { id: 'sharedExpenses', icon: Users, label: 'Shared Expenses', color: 'from-green-500 to-emerald-500' },
         { id: 'notes', icon: BookOpen, label: 'Notes', color: 'from-indigo-500 to-purple-500' },
         { id: 'habits', icon: Target, label: 'Habit Tracker', color: 'from-pink-500 to-rose-500' },
-        { id: 'events', icon: Sparkles, label: 'College Events', color: 'from-yellow-500 to-orange-500' },
+        { id: 'events', icon: Sparkles, label: 'Events', color: 'from-yellow-500 to-orange-500' },
 
         { id: 'debts', icon: DollarSign, label: 'Debts & Loans', color: 'from-red-500 to-pink-500' },
     ];

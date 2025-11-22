@@ -8,6 +8,7 @@ import {
     timetableAPI,
     assignmentsAPI,
     examsAPI,
+    deadlinesAPI,
     debtsAPI,
     notesAPI,
     sharedExpensesAPI,
@@ -31,6 +32,7 @@ export const AppProvider = ({ children }) => {
     const [timetable, setTimetable] = useState([]);
     const [assignments, setAssignments] = useState([]);
     const [exams, setExams] = useState([]);
+    const [deadlines, setDeadlines] = useState([]);
     const [loading, setLoading] = useState(true);
 
     // Placeholder states for features not yet connected to backend
@@ -65,6 +67,7 @@ export const AppProvider = ({ children }) => {
                 timetableData,
                 assignmentsData,
                 examsData,
+                deadlinesData,
                 debtsData,
                 notesData,
                 sharedExpensesData,
@@ -79,6 +82,7 @@ export const AppProvider = ({ children }) => {
                 timetableAPI.getAll(),
                 assignmentsAPI.getAll(),
                 examsAPI.getAll(),
+                deadlinesAPI.getAll(),
                 debtsAPI.getAll(),
                 notesAPI.getAll(),
                 sharedExpensesAPI.getAll(),
@@ -145,6 +149,10 @@ export const AppProvider = ({ children }) => {
                 console.log('✅ Exams loaded:', examsData.value.length);
                 setExams(examsData.value);
             }
+            if (deadlinesData.status === 'fulfilled') {
+                console.log('✅ Deadlines loaded:', deadlinesData.value.length);
+                setDeadlines(deadlinesData.value);
+            }
             if (debtsData.status === 'fulfilled') {
                 console.log('✅ Debts loaded:', debtsData.value.length);
                 setDebts(debtsData.value);
@@ -196,6 +204,7 @@ export const AppProvider = ({ children }) => {
         setTimetable([]);
         setAssignments([]);
         setExams([]);
+        setDeadlines([]);
         setLoading(false);
     };
 
@@ -351,76 +360,148 @@ export const AppProvider = ({ children }) => {
     // Semester Config Actions
     const setSemesterConfig = async (config) => {
         try {
-            const updated = await semesterAPI.updateConfig(config);
+            let updated;
+            if (config._id) {
+                // Update existing semester
+                updated = await semesterAPI.updateConfig(config);
+            } else {
+                // Create new semester
+                updated = await semesterAPI.createConfig(config);
+            }
             setSemesterConfigState(updated);
+            console.log('✅ Semester saved:', updated);
+            return updated;
         } catch (error) {
-            console.error('Error updating semester config:', error);
+            console.error('Error saving semester config:', error);
+            throw error;
         }
     };
 
     // Timetable Actions
     const addTimetable = async (classData) => {
         try {
-            const newClass = await timetableAPI.create(classData);
+            if (!semesterConfig || !semesterConfig._id) {
+                throw new Error('No active semester. Please create a semester first.');
+            }
+            const newClass = await timetableAPI.create({
+                ...classData,
+                semesterId: semesterConfig._id
+            });
             setTimetable((prev) => [newClass, ...prev]);
         } catch (error) {
             console.error('Error adding class:', error);
+            throw error;
         }
     };
 
     const deleteTimetable = async (id) => {
         try {
             await timetableAPI.delete(id);
-            setTimetable((prev) => prev.filter((c) => c._id !== id));
+            setTimetable((prev) => prev.filter((c) => (c._id || c.id) !== id));
         } catch (error) {
             console.error('Error deleting class:', error);
+            throw error;
         }
     };
 
     // Assignment Actions
     const addAssignment = async (assignment) => {
         try {
-            const newAssignment = await assignmentsAPI.create(assignment);
+            if (!semesterConfig || !semesterConfig._id) {
+                throw new Error('No active semester. Please create a semester first.');
+            }
+            const newAssignment = await assignmentsAPI.create({
+                ...assignment,
+                semesterId: semesterConfig._id
+            });
             setAssignments((prev) => [newAssignment, ...prev]);
         } catch (error) {
             console.error('Error adding assignment:', error);
+            throw error;
         }
     };
 
     const updateAssignment = async (id, updates) => {
         try {
             const updated = await assignmentsAPI.update(id, updates);
-            setAssignments((prev) => prev.map((a) => (a._id === id ? updated : a)));
+            setAssignments((prev) => prev.map((a) => ((a._id || a.id) === id ? updated : a)));
         } catch (error) {
             console.error('Error updating assignment:', error);
+            throw error;
         }
     };
 
     const deleteAssignment = async (id) => {
         try {
             await assignmentsAPI.delete(id);
-            setAssignments((prev) => prev.filter((a) => a._id !== id));
+            setAssignments((prev) => prev.filter((a) => (a._id || a.id) !== id));
         } catch (error) {
             console.error('Error deleting assignment:', error);
+            throw error;
         }
     };
 
     // Exam Actions
     const addExam = async (exam) => {
         try {
-            const newExam = await examsAPI.create(exam);
+            if (!semesterConfig || !semesterConfig._id) {
+                throw new Error('No active semester. Please create a semester first.');
+            }
+            const newExam = await examsAPI.create({
+                ...exam,
+                semesterId: semesterConfig._id
+            });
             setExams((prev) => [newExam, ...prev]);
         } catch (error) {
             console.error('Error adding exam:', error);
+            throw error;
         }
     };
 
     const deleteExam = async (id) => {
         try {
             await examsAPI.delete(id);
-            setExams((prev) => prev.filter((e) => e._id !== id));
+            setExams((prev) => prev.filter((e) => (e._id || e.id) !== id));
         } catch (error) {
             console.error('Error deleting exam:', error);
+            throw error;
+        }
+    };
+
+    // Deadline Actions
+    const addDeadline = async (deadline) => {
+        try {
+            if (!semesterConfig || !semesterConfig._id) {
+                throw new Error('No active semester. Please create a semester first.');
+            }
+            const newDeadline = await deadlinesAPI.create({
+                ...deadline,
+                semesterId: semesterConfig._id
+            });
+            setDeadlines((prev) => [newDeadline, ...prev]);
+        } catch (error) {
+            console.error('Error adding deadline:', error);
+            throw error;
+        }
+    };
+
+    const updateDeadline = async (id, updates) => {
+        try {
+            const updated = await deadlinesAPI.update(id, updates);
+            setDeadlines((prev) => prev.map((d) => ((d._id || d.id) === id ? updated : d)));
+        } catch (error) {
+            console.error('Error updating deadline:', error);
+            throw error;
+        }
+    };
+
+    const deleteDeadline = async (id) => {
+        try {
+            await deadlinesAPI.delete(id);
+            setDeadlines((prev) => prev.filter((d) => (d._id || d.id) !== id));
+        } catch (error) {
+            console.error('Error deleting deadline:', error);
+            throw error;
         }
     };
 
@@ -575,6 +656,7 @@ export const AppProvider = ({ children }) => {
         timetable,
         assignments,
         exams,
+        deadlines,
         sharedExpenses,
         notes,
         studySessions,
@@ -639,6 +721,11 @@ export const AppProvider = ({ children }) => {
         // Exam actions
         addExam,
         deleteExam,
+        
+        // Deadline actions
+        addDeadline,
+        updateDeadline,
+        deleteDeadline,
         
         // Utility
         refreshData: loadAllData,

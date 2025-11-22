@@ -117,7 +117,7 @@ A comprehensive student management application built with React - your all-in-on
 - Color-coded status
 - Motivational streaks
 
-### 🎓 College Events Calendar
+### 🎓 Events Calendar
 - Track campus events
 - Event categories (Workshop, Seminar, Sports, etc.)
 - Registration links
@@ -361,7 +361,7 @@ Planned features for upcoming versions:
 - [ ] **Shared Expenses**: Splitwise-style bill splitting with roommates
 - [ ] **Notes Organizer**: Subject-wise notes with PDF/image upload
 - [ ] **Habit Tracker**: Daily habits with streak visualization
-- [ ] **College Events Calendar**: Track hackathons, seminars, and cultural events
+- [ ] **Events Calendar**: Track hackathons, seminars, and cultural events
 - [ ] **Hostel Expense Mode**: Daily mess tracking and monthly summaries
 - [ ] **Google Calendar Integration**: Auto-sync classes and deadlines
 - [ ] Cloud synchronization with backend

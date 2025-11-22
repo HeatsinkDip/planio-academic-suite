@@ -5,11 +5,15 @@ import { Assignment } from '../models/index.js';
 const router = express.Router();
 
 // @route   GET /api/assignments
-// @desc    Get all assignments for user
+// @desc    Get all assignments for user (optionally filtered by semester)
 // @access  Private
 router.get('/', protect, async (req, res) => {
     try {
-        const assignments = await Assignment.find({ userId: req.user._id }).sort({ dueDate: 1 });
+        const query = { userId: req.user._id };
+        if (req.query.semesterId) {
+            query.semesterId = req.query.semesterId;
+        }
+        const assignments = await Assignment.find(query).sort({ dueDate: 1 });
         res.json(assignments);
     } catch (error) {
         res.status(500).json({ message: error.message });

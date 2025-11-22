@@ -90,14 +90,30 @@ const semesterConfigSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
-        unique: true
+        required: true
     },
-    name: String,
-    startDate: Date,
-    endDate: Date,
-    holidays: [String]
-});
+    name: {
+        type: String,
+        required: true
+    },
+    startDate: {
+        type: Date,
+        required: true
+    },
+    endDate: {
+        type: Date,
+        required: true
+    },
+    holidays: [String],
+    isArchived: { 
+        type: Boolean, 
+        default: false 
+    },
+    isActive: {
+        type: Boolean,
+        default: true
+    }
+}, { timestamps: true });
 
 const semesterEventSchema = new mongoose.Schema({
     userId: {
@@ -132,14 +148,22 @@ const timetableSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    semesterId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SemesterConfig',
+        required: true
+    },
     subject: {
         type: String,
         required: true
     },
+    code: String,
+    name: String,
+    section: String,
     type: {
         type: String,
-        enum: ['lecture', 'lab', 'tutorial'],
-        default: 'lecture'
+        enum: ['Lecture', 'Lab', 'Tutorial'],
+        default: 'Lecture'
     },
     day: {
         type: String,
@@ -154,6 +178,7 @@ const timetableSchema = new mongoose.Schema({
         required: true
     },
     location: String,
+    faculty: String,
     instructor: String,
     color: String,
     createdAt: {
@@ -166,6 +191,11 @@ const assignmentSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
+        required: true
+    },
+    semesterId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SemesterConfig',
         required: true
     },
     title: {
@@ -194,6 +224,11 @@ const examSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    semesterId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SemesterConfig',
+        required: true
+    },
     title: {
         type: String,
         required: true
@@ -211,6 +246,42 @@ const examSchema = new mongoose.Schema({
     }
 });
 
+const deadlineSchema = new mongoose.Schema({
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    semesterId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SemesterConfig',
+        required: true
+    },
+    title: {
+        type: String,
+        required: true
+    },
+    course: String,
+    dueDate: {
+        type: String,
+        required: true
+    },
+    description: String,
+    completed: {
+        type: Boolean,
+        default: false
+    },
+    priority: {
+        type: String,
+        enum: ['high', 'medium', 'low'],
+        default: 'medium'
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
 export const Task = mongoose.model('Task', taskSchema);
 export const Transaction = mongoose.model('Transaction', transactionSchema);
 export const Wallet = mongoose.model('Wallet', walletSchema);
@@ -219,3 +290,4 @@ export const SemesterEvent = mongoose.model('SemesterEvent', semesterEventSchema
 export const Timetable = mongoose.model('Timetable', timetableSchema);
 export const Assignment = mongoose.model('Assignment', assignmentSchema);
 export const Exam = mongoose.model('Exam', examSchema);
+export const Deadline = mongoose.model('Deadline', deadlineSchema);
